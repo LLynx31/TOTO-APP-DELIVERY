@@ -4,7 +4,9 @@ import {
   Column,
   CreateDateColumn,
   UpdateDateColumn,
+  OneToMany,
 } from 'typeorm';
+import { KycDocument } from './kyc-document.entity';
 
 @Entity('deliverers')
 export class Deliverer {
@@ -33,15 +35,6 @@ export class Deliverer {
   license_plate: string;
 
   // KYC fields
-  @Column({ nullable: true, length: 255 })
-  id_card_front_url: string;
-
-  @Column({ nullable: true, length: 255 })
-  id_card_back_url: string;
-
-  @Column({ nullable: true, length: 255 })
-  driver_license_url: string;
-
   @Column({ default: 'pending', length: 20 })
   kyc_status: 'pending' | 'approved' | 'rejected';
 
@@ -73,4 +66,7 @@ export class Deliverer {
 
   @UpdateDateColumn()
   updated_at: Date;
+
+  @OneToMany(() => KycDocument, (document) => document.deliverer)
+  kyc_documents: KycDocument[];
 }

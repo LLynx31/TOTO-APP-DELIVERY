@@ -7,6 +7,7 @@ import { Deliverer } from '../auth/entities/deliverer.entity';
 import { Delivery } from '../deliveries/entities/delivery.entity';
 import { DeliveryQuota } from '../quotas/entities/delivery-quota.entity';
 import { QuotaTransaction } from '../quotas/entities/quota-transaction.entity';
+import { KycDocument } from '../auth/entities/kyc-document.entity';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { QuotaTransaction } from '../quotas/entities/quota-transaction.entity';
       Delivery,
       DeliveryQuota,
       QuotaTransaction,
+      KycDocument,
     ]),
   ],
   controllers: [AdminController],

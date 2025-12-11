@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between, In } from 'typeorm';
 import { User } from '../auth/entities/user.entity';
 import { Deliverer } from '../auth/entities/deliverer.entity';
+import { KycDocument, KycDocumentType } from '../auth/entities/kyc-document.entity';
 import { Delivery } from '../deliveries/entities/delivery.entity';
 import { DeliveryQuota } from '../quotas/entities/delivery-quota.entity';
 import { QuotaTransaction } from '../quotas/entities/quota-transaction.entity';
@@ -23,6 +24,8 @@ export class AdminService {
     private quotaRepository: Repository<DeliveryQuota>,
     @InjectRepository(QuotaTransaction)
     private transactionRepository: Repository<QuotaTransaction>,
+    @InjectRepository(KycDocument)
+    private kycDocumentRepository: Repository<KycDocument>,
   ) {}
 
   // ==========================================
@@ -508,5 +511,50 @@ export class AdminService {
       total_purchases: transactions.length,
       revenue_by_type: byType,
     };
+  }
+
+  // ==========================================
+  // KYC DOCUMENT MANAGEMENT
+  // ==========================================
+
+  async uploadKycDocument(
+    delivererId: string,
+    documentType: KycDocumentType,
+    file: Express.Multer.File,
+  ) {
+    const deliverer = await this.delivererRepository.findOne({ where: { id: delivererId } });
+    if (!deliverer) {
+      throw new NotFoundException('Deliverer not found');
+    }
+
+    const newDocument = this.kycDocumentRepository.create({
+      deliverer_id: delivererId,
+      document_type: documentType,
+      file_name: file.filename,
+      file_path: file.path,
+      file_type: file.mimetype,
+    });
+
+    return this.kycDocumentRepository.save(newDocument);
+  }
+
+  async getKycDocumentsForDeliverer(delivererId: string) {
+    const deliverer = await this.delivererRepository.findOne({ where: { id: delivererId } });
+    if (!deliverer) {
+      throw new NotFoundException('Deliverer not found');
+    }
+
+    return this.kycDocumentRepository.find({
+      where: { deliverer_id: delivererId },
+      order: { created_at: 'DESC' },
+    });
+  }
+
+  async getKycDocumentById(documentId: string) {
+    const document = await this.kycDocumentRepository.findOne({ where: { id: documentId } });
+    if (!document) {
+      throw new NotFoundException('KYC document not found');
+    }
+    return document;
   }
 }
