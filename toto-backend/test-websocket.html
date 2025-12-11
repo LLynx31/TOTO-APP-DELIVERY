@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test WebSocket Tracking - TOTO Delivery</title>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            border-bottom: 2px solid #4CAF50;
+            padding-bottom: 10px;
+        }
+        .section {
+            margin: 20px 0;
+            padding: 15px;
+            background: #f9f9f9;
+            border-left: 4px solid #4CAF50;
+        }
+        input, button {
+            padding: 10px;
+            margin: 5px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            cursor: pointer;
+            border: none;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        #log {
+            background: #000;
+            color: #0f0;
+            padding: 15px;
+            height: 300px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+            border-radius: 4px;
+        }
+        .status {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .connected {
+            background: #4CAF50;
+            color: white;
+        }
+        .disconnected {
+            background: #f44336;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚚 TOTO Delivery - Test WebSocket Tracking</h1>
+
+        <div class="section">
+            <h3>Connexion</h3>
+            <label>Token JWT:</label><br>
+            <input type="text" id="token" style="width: 90%;" placeholder="Coller votre token JWT ici">
+            <br>
+            <button onclick="connect()">Se connecter</button>
+            <button onclick="disconnect()">Se déconnecter</button>
+            <br>
+            <span>Status: <span id="status" class="status disconnected">Déconnecté</span></span>
+        </div>
+
+        <div class="section">
+            <h3>Rejoindre une livraison</h3>
+            <input type="text" id="deliveryId" placeholder="ID de livraison">
+            <button onclick="joinDelivery()">Rejoindre</button>
+            <button onclick="leaveDelivery()">Quitter</button>
+        </div>
+
+        <div class="section">
+            <h3>Mettre à jour la localisation (Livreur)</h3>
+            <input type="number" id="latitude" placeholder="Latitude" value="5.3599517" step="0.0000001">
+            <input type="number" id="longitude" placeholder="Longitude" value="-4.0082563" step="0.0000001">
+            <br>
+            <input type="number" id="speed" placeholder="Vitesse (km/h)" value="30">
+            <input type="number" id="heading" placeholder="Direction (°)" value="90">
+            <button onclick="updateLocation()">Mettre à jour</button>
+        </div>
+
+        <div class="section">
+            <h3>Historique de tracking</h3>
+            <button onclick="getTrackingHistory()">Récupérer l'historique</button>
+        </div>
+
+        <div class="section">
+            <h3>Log des événements</h3>
+            <div id="log"></div>
+            <button onclick="clearLog()">Effacer le log</button>
+        </div>
+    </div>
+
+    <script>
+        let socket = null;
+        let currentDeliveryId = null;
+
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            const color = type === 'error' ? '#f00' : type === 'success' ? '#0f0' : '#0ff';
+            logDiv.innerHTML += `<div style="color: ${color}">[${timestamp}] ${message}</div>`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        function connect() {
+            const token = document.getElementById('token').value;
+            if (!token) {
+                alert('Veuillez entrer un token JWT');
+                return;
+            }
+
+            socket = io('http://localhost:3000/tracking', {
+                auth: {
+                    token: token
+                }
+            });
+
+            socket.on('connect', () => {
+                log('✓ Connecté au serveur WebSocket', 'success');
+                document.getElementById('status').textContent = 'Connecté';
+                document.getElementById('status').className = 'status connected';
+            });
+
+            socket.on('disconnect', () => {
+                log('✗ Déconnecté du serveur', 'error');
+                document.getElementById('status').textContent = 'Déconnecté';
+                document.getElementById('status').className = 'status disconnected';
+            });
+
+            socket.on('location_updated', (data) => {
+                log(`📍 Position mise à jour: Lat ${data.latitude}, Lng ${data.longitude}, Vitesse ${data.speed}km/h`, 'success');
+            });
+
+            socket.on('delivery_status_changed', (data) => {
+                log(`📦 Statut changé: ${data.status}`, 'success');
+            });
+
+            socket.on('error', (error) => {
+                log(`❌ Erreur: ${error.message || error}`, 'error');
+            });
+        }
+
+        function disconnect() {
+            if (socket) {
+                socket.disconnect();
+                socket = null;
+            }
+        }
+
+        function joinDelivery() {
+            const deliveryId = document.getElementById('deliveryId').value;
+            if (!deliveryId) {
+                alert('Veuillez entrer un ID de livraison');
+                return;
+            }
+
+            if (!socket || !socket.connected) {
+                alert('Veuillez vous connecter d\'abord');
+                return;
+            }
+
+            currentDeliveryId = deliveryId;
+            socket.emit('join_delivery', { delivery_id: deliveryId }, (response) => {
+                log(`✓ Rejoint la livraison ${deliveryId}`, 'success');
+                log(JSON.stringify(response), 'info');
+            });
+        }
+
+        function leaveDelivery() {
+            if (!currentDeliveryId) {
+                alert('Aucune livraison active');
+                return;
+            }
+
+            socket.emit('leave_delivery', { delivery_id: currentDeliveryId }, (response) => {
+                log(`✓ Quitté la livraison ${currentDeliveryId}`, 'success');
+                log(JSON.stringify(response), 'info');
+                currentDeliveryId = null;
+            });
+        }
+
+        function updateLocation() {
+            const deliveryId = document.getElementById('deliveryId').value;
+            if (!deliveryId) {
+                alert('Veuillez entrer un ID de livraison');
+                return;
+            }
+
+            const data = {
+                delivery_id: deliveryId,
+                latitude: parseFloat(document.getElementById('latitude').value),
+                longitude: parseFloat(document.getElementById('longitude').value),
+                speed: parseFloat(document.getElementById('speed').value),
+                heading: parseFloat(document.getElementById('heading').value),
+                accuracy: 10
+            };
+
+            socket.emit('update_location', data, (response) => {
+                log(`✓ Position envoyée`, 'success');
+                log(JSON.stringify(response), 'info');
+            });
+        }
+
+        function getTrackingHistory() {
+            const deliveryId = document.getElementById('deliveryId').value;
+            if (!deliveryId) {
+                alert('Veuillez entrer un ID de livraison');
+                return;
+            }
+
+            socket.emit('get_tracking_history', { delivery_id: deliveryId }, (response) => {
+                log(`📊 Historique reçu (${response.data.history.length} points)`, 'success');
+                log(JSON.stringify(response.data, null, 2), 'info');
+            });
+        }
+
+        function clearLog() {
+            document.getElementById('log').innerHTML = '';
+        }
+
+        log('Prêt à se connecter. Veuillez entrer votre token JWT.', 'info');
+    </script>
+</body>
+</html>

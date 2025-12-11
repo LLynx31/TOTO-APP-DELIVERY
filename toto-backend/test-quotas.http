@@ -1,0 +1,98 @@
+### Test TOTO API - Quotas Module
+
+@baseUrl = http://localhost:3000
+@accessToken = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJiNjc3NWZkNC02ZjgwLTQxNDUtOGZjYS1lMjU4ODk0NTZjYzEiLCJ0eXBlIjoiY2xpZW50IiwiaWF0IjoxNzY0MzU3MzQ3LCJleHAiOjE3NjQzNjA5NDd9.TZRzEXPxOhT11dNgWVnfR5qcS-v-OBSgePE1a2tH-qE
+
+### 1. Get available packages (no auth required)
+GET {{baseUrl}}/quotas/packages HTTP/1.1
+Authorization: Bearer {{accessToken}}
+
+### 2. Register a new client
+POST {{baseUrl}}/auth/client/register HTTP/1.1
+Content-Type: application/json
+
+{
+  "phone_number": "+22599999999",
+  "password": "testpass123",
+  "full_name": "Test Quota Client"
+}
+
+### 3. Login as client
+POST {{baseUrl}}/auth/client/login HTTP/1.1
+Content-Type: application/json
+
+{
+  "phone_number": "+22599999999",
+  "password": "testpass123"
+}
+
+### 4. Purchase BASIC quota package
+POST {{baseUrl}}/quotas/purchase HTTP/1.1
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+  "quota_type": "basic",
+  "payment_method": "mobile_money",
+  "payment_reference": "MM-TEST-001"
+}
+
+### 5. Purchase STANDARD quota package
+POST {{baseUrl}}/quotas/purchase HTTP/1.1
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+  "quota_type": "standard",
+  "payment_method": "mobile_money",
+  "payment_reference": "MM-TEST-002"
+}
+
+### 6. Purchase CUSTOM quota package
+POST {{baseUrl}}/quotas/purchase HTTP/1.1
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+  "quota_type": "custom",
+  "custom_quantity": 25,
+  "payment_method": "mobile_money",
+  "payment_reference": "MM-TEST-003"
+}
+
+### 7. Get my quotas
+GET {{baseUrl}}/quotas/my-quotas HTTP/1.1
+Authorization: Bearer {{accessToken}}
+
+### 8. Get active quota
+GET {{baseUrl}}/quotas/active HTTP/1.1
+Authorization: Bearer {{accessToken}}
+
+### 9. Get quota history (replace {quota_id} with actual ID from previous requests)
+GET {{baseUrl}}/quotas/{quota_id}/history HTTP/1.1
+Authorization: Bearer {{accessToken}}
+
+### 10. Create a delivery (will consume quota)
+POST {{baseUrl}}/deliveries HTTP/1.1
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+  "pickup_address": "Cocody Riviera, Abidjan",
+  "pickup_latitude": 5.3599517,
+  "pickup_longitude": -4.0082563,
+  "delivery_address": "Yopougon, Abidjan",
+  "delivery_latitude": 5.3364032,
+  "delivery_longitude": -4.0266334,
+  "delivery_phone": "+22598765432",
+  "receiver_name": "Kouadio Aya",
+  "package_description": "Documents importants"
+}
+
+### 11. Cancel delivery (will refund quota - replace {delivery_id} with actual ID)
+POST {{baseUrl}}/deliveries/{delivery_id}/cancel HTTP/1.1
+Authorization: Bearer {{accessToken}}
+
+### 12. Get quota history to verify transaction
+GET {{baseUrl}}/quotas/{quota_id}/history HTTP/1.1
+Authorization: Bearer {{accessToken}}

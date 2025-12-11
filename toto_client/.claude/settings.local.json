@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(flutter clean:*)",
+      "Bash(flutter pub get:*)",
+      "Bash(flutter analyze:*)",
+      "Bash(awk:*)",
+      "Bash(find:*)",
+      "Bash(flutter run:*)",
+      "Bash(nc:*)",
+      "Bash(flutter devices:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
