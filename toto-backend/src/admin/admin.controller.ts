@@ -13,8 +13,12 @@ import {
   DefaultValuePipe,
   HttpCode,
   HttpStatus,
+  UploadedFile,
+  UseInterceptors,
+  Res,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery, ApiConsumes, ApiBody } from '@nestjs/swagger';
 import { AdminService } from './admin.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AdminRoleGuard } from '../auth/guards/admin-role.guard';
@@ -22,6 +26,11 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateDelivererDto } from './dto/update-deliverer.dto';
 import { ApproveKycDto } from './dto/approve-kyc.dto';
+import { kycStorage, kycFileFilter } from '../config/multer.config';
+import { KycDocumentType } from '../auth/entities/kyc-document.entity';
+import { Response } from 'express';
+import { createReadStream } from 'fs';
+import { join } from 'path';
 
 @ApiTags('admin')
 @Controller('admin')
@@ -235,6 +244,64 @@ export class AdminController {
     @Query('endDate') endDate?: Date,
   ) {
     return this.adminService.getDelivererEarnings(id, startDate, endDate);
+  }
+
+  // ==========================================
+  // KYC DOCUMENT MANAGEMENT
+  // ==========================================
+
+  @Post('deliverers/:id/kyc-document')
+  @Roles('super_admin', 'admin')
+  @UseInterceptors(FileInterceptor('file', { storage: kycStorage, fileFilter: kycFileFilter }))
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({
+    summary: 'Uploader un document KYC',
+    description: 'Uploade un document KYC pour un livreur (CNI, Justificatif de domicile, RIB)',
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: { type: 'string', format: 'binary' },
+        document_type: { type: 'string', enum: Object.values(KycDocumentType) },
+      },
+    },
+  })
+  @ApiResponse({ status: 201, description: 'Document uploadé avec succès' })
+  async uploadKycDocument(
+    @Param('id', ParseUUIDPipe) delivererId: string,
+    @UploadedFile() file: Express.Multer.File,
+    @Body('document_type') documentType: KycDocumentType,
+  ) {
+    return this.adminService.uploadKycDocument(delivererId, documentType, file);
+  }
+
+  @Get('deliverers/:id/kyc-documents')
+  @Roles('super_admin', 'admin', 'moderator')
+  @ApiOperation({
+    summary: 'Lister les documents KYC',
+    description: 'Récupère la liste des documents KYC pour un livreur',
+  })
+  @ApiResponse({ status: 200, description: 'Liste des documents' })
+  async getKycDocuments(@Param('id', ParseUUIDPipe) delivererId: string) {
+    return this.adminService.getKycDocumentsForDeliverer(delivererId);
+  }
+
+  @Get('kyc-documents/:documentId')
+  @Roles('super_admin', 'admin', 'moderator')
+  @ApiOperation({
+    summary: 'Télécharger un document KYC',
+    description: 'Permet de visualiser ou télécharger un document KYC spécifique',
+  })
+  @ApiResponse({ status: 200, description: 'Fichier du document' })
+  async getKycDocument(
+    @Param('documentId', ParseUUIDPipe) documentId: string,
+    @Res() res: Response,
+  ) {
+    const document = await this.adminService.getKycDocumentById(documentId);
+    const fileStream = createReadStream(join(process.cwd(), document.file_path));
+    res.setHeader('Content-Type', document.file_type);
+    fileStream.pipe(res);
   }
 
   // ==========================================
