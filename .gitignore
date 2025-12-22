@@ -165,3 +165,17 @@ Thumbs.db
 *.swp
 *.swo
 *~
+
+# ============================
+#   ROOT PROJECT FILES
+# ============================
+
+# Documentation et mockups à la racine (ne pas push)
+/*.md
+/*.pdf
+
+# Note: Garde les README.md dans les sous-dossiers
+!toto-backend/README.md
+!toto_client/README.md
+!toto_deliverer/README.md
+!toto-admin/README.md
