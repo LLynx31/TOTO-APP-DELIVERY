@@ -179,3 +179,5 @@ Thumbs.db
 !toto_client/README.md
 !toto_deliverer/README.md
 !toto-admin/README.md
+
+.gitignore
