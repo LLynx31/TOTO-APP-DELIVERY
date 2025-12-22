@@ -95,12 +95,36 @@ class DeliveryService {
     String? comment,
   ) async {
     await _apiClient.post(
-      ApiConfig.deliveryRating(deliveryId),
+      ApiConfig.rateDelivery(deliveryId),
       data: {
-        'rating': rating,
+        'stars': rating,
         if (comment != null) 'comment': comment,
       },
     );
+  }
+
+  // Récupérer la notation d'une livraison
+  Future<Map<String, dynamic>?> getDeliveryRating(String deliveryId) async {
+    try {
+      final response = await _apiClient.get(
+        ApiConfig.getDeliveryRating(deliveryId),
+      );
+      return response.data as Map<String, dynamic>?;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // Vérifier si déjà noté
+  Future<bool> hasRatedDelivery(String deliveryId) async {
+    try {
+      final response = await _apiClient.get(
+        ApiConfig.checkHasRated(deliveryId),
+      );
+      return (response.data as Map<String, dynamic>)['has_rated'] ?? false;
+    } catch (e) {
+      return false;
+    }
   }
 
   // Signaler un problème

@@ -62,24 +62,25 @@ class ApiClient {
 
   // Initialiser depuis le stockage sécurisé
   Future<void> init() async {
-    _accessToken = await _storage.read(key: 'access_token');
-    _refreshToken = await _storage.read(key: 'refresh_token');
+    _accessToken = await _storage.read(key: ApiConfig.accessTokenKey);
+    _refreshToken = await _storage.read(key: ApiConfig.refreshTokenKey);
   }
 
   // Sauvegarder les tokens
   Future<void> saveTokens(String accessToken, String refreshToken) async {
     _accessToken = accessToken;
     _refreshToken = refreshToken;
-    await _storage.write(key: 'access_token', value: accessToken);
-    await _storage.write(key: 'refresh_token', value: refreshToken);
+    await _storage.write(key: ApiConfig.accessTokenKey, value: accessToken);
+    await _storage.write(key: ApiConfig.refreshTokenKey, value: refreshToken);
   }
 
   // Supprimer les tokens (déconnexion)
   Future<void> clearTokens() async {
     _accessToken = null;
     _refreshToken = null;
-    await _storage.delete(key: 'access_token');
-    await _storage.delete(key: 'refresh_token');
+    await _storage.delete(key: ApiConfig.accessTokenKey);
+    await _storage.delete(key: ApiConfig.refreshTokenKey);
+    await _storage.delete(key: ApiConfig.userKey);
   }
 
   // Rafraîchir le token d'accès
@@ -107,7 +108,7 @@ class ApiClient {
 
   // Récupérer le refresh token
   Future<String?> getRefreshToken() async {
-    return await _storage.read(key: 'refresh_token');
+    return await _storage.read(key: ApiConfig.refreshTokenKey);
   }
 
   // GET Request

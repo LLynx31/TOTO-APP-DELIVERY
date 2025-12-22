@@ -1,11 +1,13 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Between, In } from 'typeorm';
+import { Repository, Between, In, ILike } from 'typeorm';
+import * as bcrypt from 'bcrypt';
 import { User } from '../auth/entities/user.entity';
 import { Deliverer } from '../auth/entities/deliverer.entity';
-import { Delivery } from '../deliveries/entities/delivery.entity';
+import { Delivery, DeliveryStatus } from '../deliveries/entities/delivery.entity';
 import { DeliveryQuota } from '../quotas/entities/delivery-quota.entity';
 import { QuotaTransaction } from '../quotas/entities/quota-transaction.entity';
+import { Admin } from '../auth/entities/admin.entity';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateDelivererDto } from './dto/update-deliverer.dto';
 import { ApproveKycDto } from './dto/approve-kyc.dto';
@@ -23,6 +25,8 @@ export class AdminService {
     private quotaRepository: Repository<DeliveryQuota>,
     @InjectRepository(QuotaTransaction)
     private transactionRepository: Repository<QuotaTransaction>,
+    @InjectRepository(Admin)
+    private adminRepository: Repository<Admin>,
   ) {}
 
   // ==========================================
@@ -41,7 +45,7 @@ export class AdminService {
       this.userRepository.count(),
       this.delivererRepository.count(),
       this.deliveryRepository.count({
-        where: { status: In(['accepted', 'pickup_in_progress', 'picked_up', 'delivery_in_progress']) },
+        where: { status: In([DeliveryStatus.ACCEPTED, DeliveryStatus.PICKUP_IN_PROGRESS, DeliveryStatus.PICKED_UP, DeliveryStatus.DELIVERY_IN_PROGRESS]) },
       }),
       this.deliveryRepository.count(),
       this.userRepository.count({
@@ -64,7 +68,7 @@ export class AdminService {
 
     // Calculate total revenue from completed deliveries
     const deliveries = await this.deliveryRepository.find({
-      where: { status: 'delivered' },
+      where: { status: DeliveryStatus.DELIVERED },
     });
     const totalRevenue = deliveries.reduce((sum, d) => sum + parseFloat(d.price.toString()), 0);
 
@@ -100,7 +104,7 @@ export class AdminService {
 
     const deliveries = await this.deliveryRepository.find({
       where: {
-        status: 'delivered',
+        status: DeliveryStatus.DELIVERED,
         created_at: Between(startDate, new Date()),
       },
       order: { created_at: 'ASC' },
@@ -168,22 +172,25 @@ export class AdminService {
   // ==========================================
 
   async getAllUsers(page = 1, limit = 20, search?: string, isActive?: boolean) {
-    const where: any = {};
+    const queryBuilder = this.userRepository.createQueryBuilder('user');
 
     if (search) {
-      where.phone_number = search;
+      queryBuilder.where(
+        '(user.phone_number ILIKE :search OR user.full_name ILIKE :search OR user.email ILIKE :search)',
+        { search: `%${search}%` }
+      );
     }
 
     if (isActive !== undefined) {
-      where.is_active = isActive;
+      queryBuilder.andWhere('user.is_active = :isActive', { isActive });
     }
 
-    const [users, total] = await this.userRepository.findAndCount({
-      where,
-      skip: (page - 1) * limit,
-      take: limit,
-      order: { created_at: 'DESC' },
-    });
+    queryBuilder
+      .skip((page - 1) * limit)
+      .take(limit)
+      .orderBy('user.created_at', 'DESC');
+
+    const [users, total] = await queryBuilder.getManyAndCount();
 
     return {
       data: users,
@@ -227,10 +234,13 @@ export class AdminService {
   }
 
   async getUserTransactions(id: string) {
-    const transactions = await this.transactionRepository.find({
-      where: { user_id: id },
-      order: { created_at: 'DESC' },
-    });
+    // Find transactions through quota relation (quota.user_id = id)
+    const transactions = await this.transactionRepository
+      .createQueryBuilder('transaction')
+      .leftJoinAndSelect('transaction.quota', 'quota')
+      .where('quota.user_id = :id', { id })
+      .orderBy('transaction.created_at', 'DESC')
+      .getMany();
 
     return transactions;
   }
@@ -245,27 +255,35 @@ export class AdminService {
     kycStatus?: string,
     isActive?: boolean,
     isAvailable?: boolean,
+    search?: string,
   ) {
-    const where: any = {};
+    const queryBuilder = this.delivererRepository.createQueryBuilder('deliverer');
+
+    if (search) {
+      queryBuilder.where(
+        '(deliverer.phone_number ILIKE :search OR deliverer.full_name ILIKE :search OR deliverer.email ILIKE :search OR deliverer.license_plate ILIKE :search)',
+        { search: `%${search}%` }
+      );
+    }
 
     if (kycStatus) {
-      where.kyc_status = kycStatus;
+      queryBuilder.andWhere('deliverer.kyc_status = :kycStatus', { kycStatus });
     }
 
     if (isActive !== undefined) {
-      where.is_active = isActive;
+      queryBuilder.andWhere('deliverer.is_active = :isActive', { isActive });
     }
 
     if (isAvailable !== undefined) {
-      where.is_available = isAvailable;
+      queryBuilder.andWhere('deliverer.is_available = :isAvailable', { isAvailable });
     }
 
-    const [deliverers, total] = await this.delivererRepository.findAndCount({
-      where,
-      skip: (page - 1) * limit,
-      take: limit,
-      order: { created_at: 'DESC' },
-    });
+    queryBuilder
+      .skip((page - 1) * limit)
+      .take(limit)
+      .orderBy('deliverer.created_at', 'DESC');
+
+    const [deliverers, total] = await queryBuilder.getManyAndCount();
 
     return {
       data: deliverers,
@@ -291,7 +309,7 @@ export class AdminService {
     });
 
     // Calculate earnings
-    const completedDeliveries = deliveries.filter(d => d.status === 'delivered');
+    const completedDeliveries = deliveries.filter(d => d.status === DeliveryStatus.DELIVERED);
     const totalEarnings = completedDeliveries.reduce(
       (sum, d) => sum + parseFloat(d.price.toString()),
       0,
@@ -337,7 +355,7 @@ export class AdminService {
   async getDelivererEarnings(id: string, startDate?: Date, endDate?: Date) {
     const where: any = {
       deliverer_id: id,
-      status: 'delivered',
+      status: DeliveryStatus.DELIVERED,
     };
 
     if (startDate && endDate) {
@@ -375,23 +393,45 @@ export class AdminService {
     status?: string,
     startDate?: Date,
     endDate?: Date,
+    search?: string,
   ) {
-    const where: any = {};
+    const queryBuilder = this.deliveryRepository.createQueryBuilder('delivery');
+
+    if (search) {
+      queryBuilder.where(
+        '(delivery.receiver_name ILIKE :search OR delivery.pickup_address ILIKE :search OR delivery.delivery_address ILIKE :search OR delivery.delivery_phone ILIKE :search OR delivery.pickup_phone ILIKE :search)',
+        { search: `%${search}%` }
+      );
+    }
 
     if (status) {
-      where.status = status;
+      if (search) {
+        queryBuilder.andWhere('delivery.status = :status', { status });
+      } else {
+        queryBuilder.where('delivery.status = :status', { status });
+      }
     }
 
     if (startDate && endDate) {
-      where.created_at = Between(startDate, endDate);
+      if (search || status) {
+        queryBuilder.andWhere('delivery.created_at BETWEEN :startDate AND :endDate', {
+          startDate,
+          endDate,
+        });
+      } else {
+        queryBuilder.where('delivery.created_at BETWEEN :startDate AND :endDate', {
+          startDate,
+          endDate,
+        });
+      }
     }
 
-    const [deliveries, total] = await this.deliveryRepository.findAndCount({
-      where,
-      skip: (page - 1) * limit,
-      take: limit,
-      order: { created_at: 'DESC' },
-    });
+    queryBuilder
+      .skip((page - 1) * limit)
+      .take(limit)
+      .orderBy('delivery.created_at', 'DESC');
+
+    const [deliveries, total] = await queryBuilder.getManyAndCount();
 
     return {
       data: deliveries,
@@ -419,7 +459,7 @@ export class AdminService {
       throw new NotFoundException('Delivery not found');
     }
 
-    delivery.status = 'cancelled';
+    delivery.status = DeliveryStatus.CANCELLED;
     await this.deliveryRepository.save(delivery);
 
     // TODO: Refund quota automatically (implement in DeliveriesService)
@@ -481,24 +521,31 @@ export class AdminService {
         break;
     }
 
-    const transactions = await this.transactionRepository.find({
-      where: {
-        transaction_type: 'purchase',
-        created_at: Between(startDate, new Date()),
-      },
-    });
+    // Get purchase transactions with quota relation to access price_paid and quota_type
+    const transactions = await this.transactionRepository
+      .createQueryBuilder('transaction')
+      .leftJoinAndSelect('transaction.quota', 'quota')
+      .where('transaction.transaction_type = :type', { type: 'purchase' })
+      .andWhere('transaction.created_at BETWEEN :startDate AND :endDate', {
+        startDate,
+        endDate: new Date(),
+      })
+      .orderBy('transaction.created_at', 'DESC')
+      .getMany();
 
+    // Calculate total revenue from quota price_paid
     const totalRevenue = transactions.reduce(
-      (sum, t) => sum + parseFloat(t.amount_cfa.toString()),
+      (sum, t) => sum + (t.quota ? parseFloat(t.quota.price_paid.toString()) : 0),
       0,
     );
 
     // Group by quota type
     const byType = transactions.reduce((acc, t) => {
-      const type = t.quota_type || 'unknown';
-      acc[type] = (acc[type] || 0) + parseFloat(t.amount_cfa.toString());
+      const type = t.quota?.quota_type || 'unknown';
+      const price = t.quota ? parseFloat(t.quota.price_paid.toString()) : 0;
+      acc[type] = (acc[type] || 0) + price;
       return acc;
-    }, {});
+    }, {} as Record<string, number>);
 
     return {
       period,
@@ -508,5 +555,104 @@ export class AdminService {
       total_purchases: transactions.length,
       revenue_by_type: byType,
     };
+  }
+
+  // ==========================================
+  // ADMIN MANAGEMENT
+  // ==========================================
+
+  async getAllAdmins(page: number = 1, limit: number = 20, search?: string) {
+    const queryBuilder = this.adminRepository.createQueryBuilder('admin');
+
+    if (search) {
+      queryBuilder.where(
+        '(admin.email ILIKE :search OR admin.full_name ILIKE :search)',
+        { search: `%${search}%` }
+      );
+    }
+
+    queryBuilder
+      .skip((page - 1) * limit)
+      .take(limit)
+      .orderBy('admin.created_at', 'DESC');
+
+    const [admins, total] = await queryBuilder.getManyAndCount();
+
+    return {
+      data: admins.map(admin => {
+        const { password, ...adminWithoutPassword } = admin;
+        return adminWithoutPassword;
+      }),
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    };
+  }
+
+  async getAdminById(id: string) {
+    const admin = await this.adminRepository.findOne({ where: { id } });
+    if (!admin) {
+      throw new NotFoundException('Admin introuvable');
+    }
+    const { password, ...adminWithoutPassword } = admin;
+    return adminWithoutPassword;
+  }
+
+  async createAdmin(data: {
+    email: string;
+    password: string;
+    full_name: string;
+    role: 'super_admin' | 'admin' | 'moderator';
+  }) {
+    const existingAdmin = await this.adminRepository.findOne({
+      where: { email: data.email },
+    });
+
+    if (existingAdmin) {
+      throw new ConflictException('Un admin avec cet email existe déjà');
+    }
+
+    const hashedPassword = await bcrypt.hash(data.password, 10);
+
+    const admin = this.adminRepository.create({
+      ...data,
+      password: hashedPassword,
+    });
+
+    const savedAdmin = await this.adminRepository.save(admin);
+    const { password, ...adminWithoutPassword } = savedAdmin;
+    return adminWithoutPassword;
+  }
+
+  async updateAdmin(id: string, data: {
+    full_name?: string;
+    role?: 'super_admin' | 'admin' | 'moderator';
+    is_active?: boolean;
+    password?: string;
+  }) {
+    const admin = await this.adminRepository.findOne({ where: { id } });
+    if (!admin) {
+      throw new NotFoundException('Admin introuvable');
+    }
+
+    if (data.password) {
+      data.password = await bcrypt.hash(data.password, 10);
+    }
+
+    Object.assign(admin, data);
+    const updatedAdmin = await this.adminRepository.save(admin);
+    const { password, ...adminWithoutPassword } = updatedAdmin;
+    return adminWithoutPassword;
+  }
+
+  async deleteAdmin(id: string) {
+    const admin = await this.adminRepository.findOne({ where: { id } });
+    if (!admin) {
+      throw new NotFoundException('Admin introuvable');
+    }
+
+    await this.adminRepository.remove(admin);
+    return { message: 'Admin supprimé avec succès' };
   }
 }

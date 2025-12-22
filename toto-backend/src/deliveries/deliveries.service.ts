@@ -42,6 +42,9 @@ export class DeliveriesService {
     const qr_code_pickup = this.generateQRCode('pickup');
     const qr_code_delivery = this.generateQRCode('delivery');
 
+    // Generate unique 4-digit delivery code
+    const delivery_code = await this.generateDeliveryCode();
+
     // Create delivery
     const delivery = this.deliveryRepository.create({
       ...createDeliveryDto,
@@ -50,6 +53,7 @@ export class DeliveriesService {
       price: Number(price.toFixed(2)),
       qr_code_pickup,
       qr_code_delivery,
+      delivery_code,
       status: DeliveryStatus.PENDING,
     });
 
@@ -254,6 +258,29 @@ export class DeliveriesService {
     const timestamp = Date.now();
     const random = randomBytes(16).toString('hex');
     return `TOTO-${type.toUpperCase()}-${timestamp}-${random}`;
+  }
+
+  // ==========================================
+  // HELPER: Generate Unique 4-Digit Delivery Code
+  // ==========================================
+  private async generateDeliveryCode(): Promise<string> {
+    let code = '';
+    let exists = true;
+
+    // Keep generating until we get a unique code
+    while (exists) {
+      // Generate random 4-digit number (1000-9999)
+      code = Math.floor(1000 + Math.random() * 9000).toString();
+
+      // Check if code already exists
+      const existingDelivery = await this.deliveryRepository.findOne({
+        where: { delivery_code: code },
+      });
+
+      exists = !!existingDelivery;
+    }
+
+    return code;
   }
 
   // ==========================================

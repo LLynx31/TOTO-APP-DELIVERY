@@ -27,6 +27,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     return {
       ...user,
       type: payload.type,
+      role: payload.role, // Include role for admin authorization
     };
   }
 }

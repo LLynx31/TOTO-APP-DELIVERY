@@ -7,6 +7,8 @@ import { AuthModule } from './auth/auth.module';
 import { DeliveriesModule } from './deliveries/deliveries.module';
 import { TrackingModule } from './tracking/tracking.module';
 import { QuotasModule } from './quotas/quotas.module';
+import { AdminModule } from './admin/admin.module';
+import { RatingsModule } from './ratings/ratings.module';
 
 @Module({
   imports: [
@@ -33,6 +35,8 @@ import { QuotasModule } from './quotas/quotas.module';
     DeliveriesModule,
     TrackingModule,
     QuotasModule,
+    AdminModule,
+    RatingsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -1,14 +1,9 @@
-class ApiConfig {
-  // Base URLs
-  static const String baseUrl = String.fromEnvironment(
-    'API_BASE_URL',
-    defaultValue: 'http://10.0.2.2:3000', // Android emulator localhost
-  );
+import 'env_config.dart';
 
-  static const String socketUrl = String.fromEnvironment(
-    'SOCKET_URL',
-    defaultValue: 'http://10.0.2.2:3000',
-  );
+class ApiConfig {
+  // Base URLs (auto-détection selon la plateforme)
+  static String get baseUrl => EnvConfig.baseUrl;
+  static String get socketUrl => EnvConfig.socketUrl;
 
   // API Endpoints - Auth
   static const String authDelivererRegister = '/auth/deliverer/register';
@@ -35,8 +30,12 @@ class ApiConfig {
   static String deliveryStartDelivery(String id) => '/deliveries/$id/start-delivery';
   static String deliveryConfirmDelivery(String id) => '/deliveries/$id/confirm-delivery';
   static String deliveryCancel(String id) => '/deliveries/$id/cancel';
-  static String deliveryRating(String id) => '/deliveries/$id/rating-customer';
   static String deliveryProblem(String id) => '/deliveries/$id/problem';
+
+  // Rating endpoints (bidirectional rating system)
+  static String rateDelivery(String id) => '/deliveries/$id/rate';
+  static String getDeliveryRating(String id) => '/deliveries/$id/rating';
+  static String checkHasRated(String id) => '/deliveries/$id/has-rated';
   static String deliveryQRCodes(String id) => '/deliveries/$id/qr-codes';
   static String deliveryTracking(String id) => '/deliveries/$id/tracking';
 
@@ -61,4 +60,14 @@ class ApiConfig {
   // Timeouts
   static const Duration connectTimeout = Duration(seconds: 30);
   static const Duration receiveTimeout = Duration(seconds: 30);
+  static const Duration sendTimeout = Duration(seconds: 30);
+
+  // Token expiry (en secondes)
+  static const int accessTokenExpiry = 3600; // 1 heure
+  static const int refreshTokenExpiry = 604800; // 7 jours
+
+  // Storage Keys
+  static const String accessTokenKey = 'access_token';
+  static const String refreshTokenKey = 'refresh_token';
+  static const String userKey = 'deliverer_data';
 }

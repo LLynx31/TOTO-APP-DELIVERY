@@ -1,0 +1,15 @@
+/// DTO pour la requête de connexion
+class LoginRequestDto {
+  final String phoneNumber;
+  final String password;
+
+  const LoginRequestDto({
+    required this.phoneNumber,
+    required this.password,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'phone_number': phoneNumber,
+        'password': password,
+      };
+}

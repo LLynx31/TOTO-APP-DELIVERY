@@ -48,7 +48,7 @@ Backend NestJS pour l'application de livraison TOTO en Côte d'Ivoire.
 
 ## 🛠 Technologies
 
-- **Framework**: NestJS 10.x
+- **Framework**: NestJS 11.x
 - **Base de données**: PostgreSQL
 - **ORM**: TypeORM
 - **Authentication**: JWT (jsonwebtoken)
@@ -56,6 +56,7 @@ Backend NestJS pour l'application de livraison TOTO en Côte d'Ivoire.
 - **Validation**: class-validator, class-transformer
 - **Documentation**: Swagger/OpenAPI
 - **Sécurité**: bcrypt pour les mots de passe
+- **Package Manager**: pnpm
 
 ## 📦 Installation
 
@@ -63,7 +64,15 @@ Backend NestJS pour l'application de livraison TOTO en Côte d'Ivoire.
 
 - Node.js >= 18.x
 - PostgreSQL >= 14.x
-- npm ou yarn
+- **pnpm >= 8.x** (recommandé)
+
+### Installer pnpm
+
+```bash
+npm install -g pnpm
+# ou via script shell
+curl -fsSL https://get.pnpm.io/install.sh | sh -
+```
 
 ### Étapes d'installation
 
@@ -74,7 +83,7 @@ cd toto-backend
 
 2. **Installer les dépendances**
 ```bash
-npm install
+pnpm install
 ```
 
 3. **Configurer la base de données PostgreSQL**
@@ -127,14 +136,24 @@ node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
 
 ### Mode développement (avec watch)
 ```bash
-npm run start:dev
+pnpm run start:dev
 ```
 
 ### Mode production
 ```bash
-npm run build
-npm run start:prod
+pnpm run build
+pnpm run start:prod
 ```
+
+### Créer des utilisateurs de test
+```bash
+pnpm run create-test-users
+```
+
+Cela créera automatiquement :
+- 2 clients de test (client@test.com, aya@test.com)
+- 1 livreur de test (deliverer@test.com)
+- Tous avec le mot de passe : `Password123!`
 
 ### Accès aux services
 
@@ -263,10 +282,27 @@ Voir les exemples dans [API_DOCUMENTATION.md](API_DOCUMENTATION.md).
 | JWT_REFRESH_SECRET | Secret pour les refresh tokens | random_string_64_chars |
 | JWT_REFRESH_EXPIRES_IN | Durée de vie refresh token | 7d |
 
+## 🛠️ Scripts Disponibles
+
+| Script | Description |
+|--------|-------------|
+| `pnpm install` | Installer les dépendances |
+| `pnpm run build` | Build le projet TypeScript |
+| `pnpm run start` | Démarrer en mode normal |
+| `pnpm run start:dev` | Démarrer en mode développement (watch) |
+| `pnpm run start:prod` | Démarrer en mode production |
+| `pnpm run lint` | Linter le code |
+| `pnpm run format` | Formater le code avec Prettier |
+| `pnpm test` | Exécuter les tests |
+| `pnpm run create-test-users` | Créer les utilisateurs de test |
+| `pnpm run migration:generate` | Générer une migration TypeORM |
+| `pnpm run migration:run` | Exécuter les migrations |
+| `pnpm run migration:revert` | Annuler la dernière migration |
+
 ## 📝 TODO / Améliorations futures
 
 - [ ] Implémenter les notifications push (Firebase)
-- [ ] Ajouter un système de rating/review
+- [x] ~~Ajouter un système de rating/review~~ ✅ **Fait !**
 - [ ] Intégration avec API de paiement mobile (Orange Money, MTN Money)
 - [ ] Optimisation des routes pour les livreurs
 - [ ] Dashboard admin (statistiques, gestion utilisateurs)
@@ -291,6 +327,27 @@ Pour toute question ou problème, veuillez contacter l'équipe de développement
 
 ---
 
-**Version**: 1.0.0
-**Dernière mise à jour**: Novembre 2025
-**Statut**: ✅ Prêt pour intégration avec applications Flutter
+## 🆕 Nouveautés
+
+### ✅ Système de Rating Bidirectionnel (Décembre 2025)
+
+Le système de notation est maintenant implémenté :
+- Client peut noter le livreur après livraison (1-5 étoiles + commentaire)
+- Livreur peut noter le client après livraison
+- Prévention des doubles notations (index unique en DB)
+- Endpoints dédiés : `POST /deliveries/:id/rate`, `GET /deliveries/:id/rating`
+- Documentation complète : [RATING_SYSTEM_INTEGRATION.md](RATING_SYSTEM_INTEGRATION.md)
+
+### 📦 Migration vers pnpm
+
+Le projet utilise maintenant **pnpm** comme gestionnaire de paquets pour :
+- Installation plus rapide des dépendances
+- Économie d'espace disque (store partagé)
+- Résolution stricte des dépendances
+- Meilleure performance globale
+
+---
+
+**Version**: 1.1.0
+**Dernière mise à jour**: Décembre 2025
+**Statut**: ✅ Production-ready avec système de rating complet

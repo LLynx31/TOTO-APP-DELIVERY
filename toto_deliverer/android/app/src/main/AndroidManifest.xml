@@ -8,6 +8,8 @@
     <!-- Permissions pour Localisation -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!-- Permission pour tracking en background (Android 10+) -->
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
 
     <!-- Permission pour Internet (requis pour Google Maps) -->
     <uses-permission android:name="android.permission.INTERNET" />

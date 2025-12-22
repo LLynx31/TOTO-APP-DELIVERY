@@ -2,9 +2,13 @@ import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_sizes.dart';
 import '../../core/constants/app_strings.dart';
+import '../../core/services/quota_service.dart';
 import '../../shared/models/quota_model.dart';
 import '../../shared/widgets/widgets.dart';
 import 'widgets/quota_pack_card.dart';
+import 'widgets/payment_confirmation_dialog.dart';
+import 'widgets/payment_processing_dialog.dart';
+import 'widgets/payment_receipt_screen.dart';
 
 class QuotaRechargeScreen extends StatefulWidget {
   final int currentQuota;
@@ -19,11 +23,14 @@ class QuotaRechargeScreen extends StatefulWidget {
 }
 
 class _QuotaRechargeScreenState extends State<QuotaRechargeScreen> {
+  final _quotaService = QuotaService();
   QuotaPackType? _selectedPack;
   PaymentMethod _selectedPaymentMethod = PaymentMethod.mobileMoney;
   bool _isProcessing = false;
 
+  /// Gère le processus de paiement complet
   void _handlePurchase() async {
+    // 1. Validation du formulaire
     if (_selectedPack == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -34,80 +41,87 @@ class _QuotaRechargeScreenState extends State<QuotaRechargeScreen> {
       return;
     }
 
-    setState(() => _isProcessing = true);
+    // 2. Afficher le dialog de confirmation
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => PaymentConfirmationDialog(
+        pack: _selectedPack!,
+        paymentMethod: _selectedPaymentMethod,
+        onConfirm: () {},
+      ),
+    );
 
-    // TODO: Implement payment logic
-    await Future.delayed(const Duration(seconds: 2));
+    if (confirmed == null || !mounted) return;
 
-    if (mounted) {
-      setState(() => _isProcessing = false);
+    // 3. Afficher le dialog de processing et effectuer le paiement
+    final success = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => PaymentProcessingDialog(
+        onProcess: () => _processPurchase(),
+      ),
+    );
 
-      // Show success dialog
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => AlertDialog(
-          icon: Container(
-            width: 64,
-            height: 64,
-            decoration: const BoxDecoration(
-              color: AppColors.success,
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              Icons.check,
-              color: AppColors.textWhite,
-              size: 32,
-            ),
+    if (!mounted) return;
+
+    // 4. Gérer le résultat
+    if (success == true) {
+      // Succès: naviguer vers l'écran de reçu
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (context) => PaymentReceiptScreen(
+            pack: _selectedPack!,
+            paymentMethod: _selectedPaymentMethod,
+            previousQuota: widget.currentQuota,
+            newQuota: widget.currentQuota + _selectedPack!.deliveries,
+            transactionId: 'TXN${DateTime.now().millisecondsSinceEpoch}',
           ),
-          title: const Text('Recharge réussie !'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'Votre quota a été rechargé avec succès',
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-              const SizedBox(height: AppSizes.spacingMd),
-              Container(
-                padding: const EdgeInsets.all(AppSizes.paddingMd),
-                decoration: BoxDecoration(
-                  color: AppColors.success.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(AppSizes.radiusSm),
-                ),
-                child: Column(
-                  children: [
-                    Text(
-                      '+${_selectedPack!.deliveries} livraisons',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.success,
-                          ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Nouveau quota: ${widget.currentQuota + _selectedPack!.deliveries}',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: AppColors.textSecondary,
-                          ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            CustomButton(
-              text: AppStrings.ok,
-              onPressed: () {
-                Navigator.pop(context); // Close dialog
-                Navigator.pop(context); // Return to dashboard
-              },
-            ),
-          ],
         ),
       );
+    } else {
+      // Échec: afficher un message d'erreur
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Le paiement a échoué. Veuillez réessayer.'),
+          backgroundColor: AppColors.error,
+          duration: Duration(seconds: 4),
+        ),
+      );
+    }
+  }
+
+  /// Traite l'achat de quota via l'API
+  Future<void> _processPurchase() async {
+    try {
+      // Mapper le pack type vers un package ID
+      final packageId = _getPackageId(_selectedPack!);
+
+      // Appel API (simulé pour l'instant car nous n'avons pas l'ID du deliverer)
+      // TODO: Récupérer le vrai deliverer ID depuis l'auth state
+      final delivererId = 'deliverer-id-placeholder';
+
+      await _quotaService.purchaseQuota(
+        delivererId: delivererId,
+        packageId: packageId,
+        paymentMethod: _selectedPaymentMethod.name,
+      );
+
+      // Succès
+    } catch (e) {
+      // Propager l'erreur pour qu'elle soit gérée par le dialog
+      rethrow;
+    }
+  }
+
+  /// Mappe un QuotaPackType vers un package ID pour l'API
+  String _getPackageId(QuotaPackType pack) {
+    switch (pack) {
+      case QuotaPackType.pack5:
+        return 'BASIC'; // 5 livraisons
+      case QuotaPackType.pack10:
+        return 'STANDARD'; // 10 livraisons
+      case QuotaPackType.pack20:
+        return 'PREMIUM'; // 20 livraisons
     }
   }
 

@@ -82,6 +82,10 @@ export class Delivery {
   @Column({ type: 'text', unique: true })
   qr_code_delivery: string;
 
+  // Validation code (4 digits) - fallback for QR code
+  @Column({ type: 'varchar', length: 4, unique: true, nullable: true })
+  delivery_code: string;
+
   // Status and tracking
   @Column({
     type: 'enum',

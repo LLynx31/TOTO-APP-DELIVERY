@@ -163,6 +163,7 @@ export class AdminController {
   })
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiQuery({ name: 'search', required: false, type: String })
   @ApiQuery({ name: 'kycStatus', required: false, enum: ['pending', 'approved', 'rejected'] })
   @ApiQuery({ name: 'isActive', required: false, type: Boolean })
   @ApiQuery({ name: 'isAvailable', required: false, type: Boolean })
@@ -170,11 +171,12 @@ export class AdminController {
   async getAllDeliverers(
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
     @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number,
+    @Query('search') search?: string,
     @Query('kycStatus') kycStatus?: string,
     @Query('isActive') isActive?: boolean,
     @Query('isAvailable') isAvailable?: boolean,
   ) {
-    return this.adminService.getAllDeliverers(page, limit, kycStatus, isActive, isAvailable);
+    return this.adminService.getAllDeliverers(page, limit, kycStatus, isActive, isAvailable, search);
   }
 
   @Get('deliverers/:id')
@@ -252,6 +254,7 @@ export class AdminController {
   @ApiQuery({ name: 'status', required: false, type: String })
   @ApiQuery({ name: 'startDate', required: false, type: Date })
   @ApiQuery({ name: 'endDate', required: false, type: Date })
+  @ApiQuery({ name: 'search', required: false, type: String })
   @ApiResponse({ status: 200, description: 'Liste paginée des livraisons' })
   async getAllDeliveries(
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
@@ -259,8 +262,9 @@ export class AdminController {
     @Query('status') status?: string,
     @Query('startDate') startDate?: Date,
     @Query('endDate') endDate?: Date,
+    @Query('search') search?: string,
   ) {
-    return this.adminService.getAllDeliveries(page, limit, status, startDate, endDate);
+    return this.adminService.getAllDeliveries(page, limit, status, startDate, endDate, search);
   }
 
   @Get('deliveries/:id')
@@ -329,5 +333,89 @@ export class AdminController {
     @Query('period') period: 'day' | 'week' | 'month' | 'year' = 'month',
   ) {
     return this.adminService.getQuotaRevenue(period);
+  }
+
+  // ==========================================
+  // ADMIN MANAGEMENT
+  // ==========================================
+
+  @Get('admins')
+  @Roles('super_admin')
+  @ApiOperation({
+    summary: 'Liste des administrateurs',
+    description: 'Récupère la liste paginée des administrateurs (super_admin uniquement)',
+  })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiQuery({ name: 'search', required: false, type: String })
+  @ApiResponse({ status: 200, description: 'Liste paginée des administrateurs' })
+  async getAllAdmins(
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
+    @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number,
+    @Query('search') search?: string,
+  ) {
+    return this.adminService.getAllAdmins(page, limit, search);
+  }
+
+  @Get('admins/:id')
+  @Roles('super_admin')
+  @ApiOperation({
+    summary: 'Détails d\'un administrateur',
+    description: 'Récupère les informations d\'un administrateur',
+  })
+  @ApiResponse({ status: 200, description: 'Informations de l\'administrateur' })
+  @ApiResponse({ status: 404, description: 'Administrateur introuvable' })
+  async getAdminById(@Param('id', ParseUUIDPipe) id: string) {
+    return this.adminService.getAdminById(id);
+  }
+
+  @Post('admins')
+  @Roles('super_admin')
+  @ApiOperation({
+    summary: 'Créer un administrateur',
+    description: 'Crée un nouveau compte administrateur',
+  })
+  @ApiResponse({ status: 201, description: 'Administrateur créé' })
+  @ApiResponse({ status: 409, description: 'Email déjà utilisé' })
+  async createAdmin(@Body() createDto: {
+    email: string;
+    password: string;
+    full_name: string;
+    role: 'super_admin' | 'admin' | 'moderator';
+  }) {
+    return this.adminService.createAdmin(createDto);
+  }
+
+  @Patch('admins/:id')
+  @Roles('super_admin')
+  @ApiOperation({
+    summary: 'Modifier un administrateur',
+    description: 'Met à jour les informations d\'un administrateur',
+  })
+  @ApiResponse({ status: 200, description: 'Administrateur mis à jour' })
+  @ApiResponse({ status: 404, description: 'Administrateur introuvable' })
+  async updateAdmin(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() updateDto: {
+      full_name?: string;
+      role?: 'super_admin' | 'admin' | 'moderator';
+      is_active?: boolean;
+      password?: string;
+    },
+  ) {
+    return this.adminService.updateAdmin(id, updateDto);
+  }
+
+  @Post('admins/:id')
+  @Roles('super_admin')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Supprimer un administrateur',
+    description: 'Supprime un compte administrateur',
+  })
+  @ApiResponse({ status: 200, description: 'Administrateur supprimé' })
+  @ApiResponse({ status: 404, description: 'Administrateur introuvable' })
+  async deleteAdmin(@Param('id', ParseUUIDPipe) id: string) {
+    return this.adminService.deleteAdmin(id);
   }
 }
