@@ -352,13 +352,13 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> {
               const SizedBox(height: AppSizes.spacingMd),
 
               // Informations du livreur
-              if (delivery.delivererId != null)
-                const DelivererInfoCard(
-                  delivererName: 'Livreur',
-                  delivererPhone: null, // TODO: Récupérer les infos du livreur via API
-                  delivererPhoto: null,
-                  rating: 4.5, // TODO: Récupérer la vraie note
-                  vehicleInfo: 'Moto',
+              if (delivery.deliverer != null)
+                DelivererInfoCard(
+                  delivererName: delivery.deliverer!.fullName,
+                  delivererPhone: delivery.deliverer!.phoneNumber,
+                  delivererPhoto: delivery.deliverer!.photoUrl,
+                  rating: delivery.deliverer!.rating,
+                  vehicleInfo: delivery.deliverer!.vehicleType ?? 'Moto',
                 ),
 
               const SizedBox(height: AppSizes.spacingMd),

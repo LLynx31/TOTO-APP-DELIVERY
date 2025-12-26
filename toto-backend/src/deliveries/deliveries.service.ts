@@ -59,14 +59,9 @@ export class DeliveriesService {
 
     const savedDelivery = await this.deliveryRepository.save(delivery);
 
-    // Use quota after successful delivery creation
-    try {
-      await this.quotasService.useQuota(clientId, savedDelivery.id);
-    } catch (error) {
-      // If quota usage fails, delete the delivery
-      await this.deliveryRepository.remove(savedDelivery);
-      throw error;
-    }
+    // Note: Le quota est consommé par le LIVREUR lors de l'acceptation,
+    // pas par le client lors de la création. Le client crée gratuitement
+    // une demande de livraison, et c'est le livreur qui paye pour l'accepter.
 
     return savedDelivery;
   }
@@ -115,6 +110,26 @@ export class DeliveriesService {
 
     if (userType === 'deliverer' && delivery.deliverer_id !== userId) {
       throw new ForbiddenException('You can only view deliveries assigned to you');
+    }
+
+    // Sanitize sensitive data before returning
+    return this.sanitizeDeliveryResponse(delivery);
+  }
+
+  // ==========================================
+  // HELPER: Sanitize Delivery Response
+  // ==========================================
+  private sanitizeDeliveryResponse(delivery: Delivery) {
+    // Remove sensitive fields from deliverer
+    if (delivery.deliverer) {
+      const { password_hash, id_card_front_url, id_card_back_url, driver_license_url, ...safeDeliverer } = delivery.deliverer;
+      (delivery as any).deliverer = safeDeliverer;
+    }
+
+    // Remove sensitive fields from client
+    if (delivery.client) {
+      const { password_hash, ...safeClient } = delivery.client as any;
+      (delivery as any).client = safeClient;
     }
 
     return delivery;
@@ -169,6 +184,16 @@ export class DeliveriesService {
   // ACCEPT DELIVERY (Deliverer)
   // ==========================================
   async acceptDelivery(id: string, delivererId: string) {
+    // 1. Vérifier que le livreur a un quota actif AVANT d'accepter
+    const quota = await this.quotasService.getActiveQuota(delivererId);
+    if (!quota) {
+      throw new ForbiddenException(
+        'Vous devez acheter un pack de courses pour accepter des livraisons. ' +
+        'Rendez-vous dans l\'onglet Quotas pour recharger votre compte.',
+      );
+    }
+
+    // 2. Récupérer la livraison
     const delivery = await this.deliveryRepository.findOne({ where: { id } });
 
     if (!delivery) {
@@ -179,6 +204,16 @@ export class DeliveriesService {
       throw new BadRequestException('Delivery is not available');
     }
 
+    // 3. Consommer le quota du livreur
+    try {
+      await this.quotasService.useQuota(delivererId, delivery.id);
+    } catch (error) {
+      throw new ForbiddenException(
+        'Impossible de consommer votre quota. Veuillez réessayer ou recharger votre compte.',
+      );
+    }
+
+    // 4. Mettre à jour la livraison
     delivery.deliverer_id = delivererId;
     delivery.status = DeliveryStatus.ACCEPTED;
     delivery.accepted_at = new Date();
@@ -197,14 +232,19 @@ export class DeliveriesService {
       throw new BadRequestException('Cannot cancel delivered delivery');
     }
 
+    // Sauvegarder le deliverer_id avant annulation (pour remboursement quota)
+    const delivererId = delivery.deliverer_id;
+    const wasAccepted = delivery.status !== DeliveryStatus.PENDING;
+
     delivery.status = DeliveryStatus.CANCELLED;
     delivery.cancelled_at = new Date();
 
     const cancelledDelivery = await this.deliveryRepository.save(delivery);
 
-    // Refund quota if delivery was cancelled
-    if (userType === 'client') {
-      await this.quotasService.refundQuota(userId, id);
+    // Rembourser le quota au LIVREUR si la livraison avait été acceptée
+    // (c'est le livreur qui a consommé un quota en acceptant, pas le client)
+    if (wasAccepted && delivererId) {
+      await this.quotasService.refundQuota(delivererId, id);
     }
 
     return cancelledDelivery;

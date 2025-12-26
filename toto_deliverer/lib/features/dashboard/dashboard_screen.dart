@@ -1,201 +1,193 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_sizes.dart';
 import '../../core/constants/app_strings.dart';
+import '../../core/services/hybrid_delivery_service.dart';
 import '../../core/services/simulation_service.dart';
+import '../../core/utils/toast_utils.dart';
+import '../../core/utils/error_messages.dart';
 import '../../shared/models/delivery_model.dart';
-import '../../shared/models/user_model.dart';
+import '../../shared/models/deliverer_model.dart';
 import '../../shared/widgets/widgets.dart';
 import '../quota/quota_recharge_screen.dart';
+import '../quota/providers/quota_provider.dart';
+import '../profile/providers/deliverer_provider.dart';
 import 'course_details_screen.dart';
 import 'widgets/available_course_card.dart';
 import 'widgets/status_quota_card.dart';
 import 'widgets/daily_stats_card.dart';
 import 'widgets/course_filters.dart';
 import 'widgets/course_skeleton.dart';
-import 'widgets/quick_actions_fab.dart';
 import 'widgets/blocked_course_overlay.dart';
 import 'widgets/quick_stats_card.dart';
 
-class DashboardScreen extends StatefulWidget {
+class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
 
   @override
-  State<DashboardScreen> createState() => _DashboardScreenState();
+  ConsumerState<DashboardScreen> createState() => _DashboardScreenState();
 }
 
-class _DashboardScreenState extends State<DashboardScreen> {
-  bool _isOnline = false;
-  int _remainingDeliveries = 5;
-  final int _totalQuota = 20;
-  final bool _isLoading = false;
+class _DashboardScreenState extends ConsumerState<DashboardScreen> {
+  final _hybridDeliveryService = HybridDeliveryService();
 
-  // Stats du jour
-  final int _completedToday = 12;
-  final double _earningsToday = 42000; // Gains du jour en FCFA
-  final double _rating = 4.8;
-  final Duration _timeOnline = Duration(hours: 6, minutes: 23);
+  bool _isOnline = false;
+  bool _isLoading = false;
+
+  // Stats du jour - Chargées depuis le profil du livreur
+  int _completedToday = 0;
+  double _earningsToday = 0; // Gains du jour en FCFA
+  double _rating = 0.0;
+  Duration _timeOnline = Duration.zero;
 
   // Filtres
   DeliveryMode? _selectedMode;
   CourseSortType? _selectedSort;
 
-  // Mock data - À remplacer par les données réelles du backend
-  // NOTE: Seulement UNE course en cours à la fois (système de livraison unique)
-  final List<DeliveryModel> _availableCourses = [
-    // UNE SEULE course en cours - En route vers le pickup (pour tester le scan QR de récupération)
-    // Commentez/décommentez pour tester différents états
-    DeliveryModel(
-      id: 'DEL001ABC',
-      customerId: 'USER001',
-      package: PackageModel(
-        size: PackageSize.medium,
-        weight: 2.5,
-        description: 'Documents importants et livres',
-        photoUrl: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400',
-      ),
-      pickupAddress: AddressModel(
-        address: 'Rue de la République, Plateau, Abidjan',
-        latitude: 5.316667,
-        longitude: -4.033333,
-      ),
-      deliveryAddress: AddressModel(
-        address: 'Boulevard Latrille, Cocody, Abidjan',
-        latitude: 5.350000,
-        longitude: -3.983333,
-      ),
-      mode: DeliveryMode.standard,
-      price: 3500,
-      status: DeliveryStatus.pickupInProgress,
-      hasInsurance: false,
-      createdAt: DateTime.now().subtract(Duration(minutes: 15)),
-      acceptedAt: DateTime.now().subtract(Duration(minutes: 15)),
-      delivererId: 'DELIVERER001',
-    ),
+  // Livraisons disponibles - Chargées depuis l'API
+  List<DeliveryModel> _availableCourses = [];
 
-    // Courses disponibles (pending) - Plusieurs pour tester les filtres
-    DeliveryModel(
-      id: 'DEL002XYZ',
-      customerId: 'USER002',
-      package: PackageModel(
-        size: PackageSize.small,
-        weight: 1.0,
-        description: 'Petit colis fragile - Électronique',
-        photoUrl: 'https://images.unsplash.com/photo-1607166452427-7e4477079cb9?w=400',
-      ),
-      pickupAddress: AddressModel(
-        address: 'Avenue Chardy, Marcory, Abidjan',
-        latitude: 5.283333,
-        longitude: -3.983333,
-      ),
-      deliveryAddress: AddressModel(
-        address: 'Rue des Jardins, Deux Plateaux, Abidjan',
-        latitude: 5.366667,
-        longitude: -4.000000,
-      ),
-      mode: DeliveryMode.express,
-      price: 4500,
-      status: DeliveryStatus.pending,
-      hasInsurance: false,
-      createdAt: DateTime.now().subtract(Duration(minutes: 2)),
-    ),
-    DeliveryModel(
-      id: 'DEL003MNO',
-      customerId: 'USER003',
-      package: PackageModel(
-        size: PackageSize.large,
-        weight: 5.0,
-        description: 'Carton de vêtements',
-        photoUrl: 'https://images.unsplash.com/photo-1523381294911-8d3cead13475?w=400',
-      ),
-      pickupAddress: AddressModel(
-        address: 'Zone 4, Marcory, Abidjan',
-        latitude: 5.275000,
-        longitude: -3.993333,
-      ),
-      deliveryAddress: AddressModel(
-        address: 'Angré 8ème tranche, Abidjan',
-        latitude: 5.400000,
-        longitude: -3.950000,
-      ),
-      mode: DeliveryMode.standard,
-      price: 5000,
-      status: DeliveryStatus.pending,
-      hasInsurance: true,
-      createdAt: DateTime.now().subtract(Duration(minutes: 5)),
-    ),
-    DeliveryModel(
-      id: 'DEL004PQR',
-      customerId: 'USER004',
-      package: PackageModel(
-        size: PackageSize.medium,
-        weight: 3.0,
-        description: 'Matériel de bureau',
-      ),
-      pickupAddress: AddressModel(
-        address: 'Treichville, Centre commercial, Abidjan',
-        latitude: 5.300000,
-        longitude: -4.016667,
-      ),
-      deliveryAddress: AddressModel(
-        address: 'Yopougon, Nouveau quartier, Abidjan',
-        latitude: 5.333333,
-        longitude: -4.083333,
-      ),
-      mode: DeliveryMode.express,
-      price: 4000,
-      status: DeliveryStatus.pending,
-      hasInsurance: false,
-      createdAt: DateTime.now(),
-    ),
-    DeliveryModel(
-      id: 'DEL005STU',
-      customerId: 'USER005',
-      package: PackageModel(
-        size: PackageSize.small,
-        weight: 0.5,
-        description: 'Enveloppe urgente',
-      ),
-      pickupAddress: AddressModel(
-        address: 'Adjamé, Marché, Abidjan',
-        latitude: 5.366667,
-        longitude: -4.016667,
-      ),
-      deliveryAddress: AddressModel(
-        address: 'Bingerville, Centre-ville',
-        latitude: 5.350000,
-        longitude: -3.900000,
-      ),
-      mode: DeliveryMode.express,
-      price: 3000,
-      status: DeliveryStatus.pending,
-      hasInsurance: false,
-      createdAt: DateTime.now().subtract(Duration(minutes: 1)),
-    ),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    // Différer les appels aux providers après la construction du widget tree
+    Future(() {
+      _loadAvailableDeliveries();
+      _loadDelivererProfile();
+      _loadQuotaData();
+    });
+  }
 
-  void _toggleOnlineStatus() {
-    if (_remainingDeliveries > 0) {
+  /// Charge les données de quota depuis le backend
+  Future<void> _loadQuotaData() async {
+    try {
+      await ref.read(quotaProvider.notifier).loadActiveQuota();
+    } catch (e) {
+      // Non-blocking, on continue avec les valeurs par défaut
+    }
+  }
+
+  /// Getters pour accéder aux données de quota depuis le provider
+  int get _remainingDeliveries => ref.watch(quotaProvider).remainingDeliveries;
+  int get _totalQuota => ref.watch(quotaProvider).activeQuota?.totalPurchased ?? 0;
+  bool get _hasActiveQuota => ref.watch(quotaProvider).activeQuota != null;
+
+  /// Getter pour le deliverer et son statut de validation
+  DelivererModel? get _deliverer => ref.watch(delivererProvider).deliverer;
+  bool get _isAccountValidated => _deliverer?.kycStatus == KycStatus.approved;
+  bool get _canAcceptDeliveries => _isAccountValidated && _remainingDeliveries > 0;
+
+  Future<void> _loadDelivererProfile() async {
+    try {
+      // Charger le profil du livreur via le provider
+      await ref.read(delivererProvider.notifier).loadProfile();
+      // Charger les stats journalières
+      await ref.read(delivererProvider.notifier).loadDailyStats();
+
+      if (!mounted) return;
+
+      final delivererState = ref.read(delivererProvider);
+      if (delivererState.deliverer != null) {
+        setState(() {
+          _isOnline = delivererState.deliverer!.isOnline;
+          _rating = delivererState.deliverer!.rating;
+        });
+      }
+
+      // Mettre à jour les stats journalières si disponibles
+      if (delivererState.dailyStats != null) {
+        setState(() {
+          _completedToday = delivererState.dailyStats!.completedToday;
+          _earningsToday = delivererState.dailyStats!.earningsToday;
+        });
+      }
+    } catch (e) {
+      print('⚠️ DashboardScreen: Erreur chargement profil: $e');
+      // Non-blocking, on continue avec les valeurs par défaut
+    }
+  }
+
+  Future<void> _loadAvailableDeliveries() async {
+    setState(() => _isLoading = true);
+
+    try {
+      print('📦 DashboardScreen: Chargement des livraisons disponibles...');
+
+      final deliveries = await _hybridDeliveryService.getAvailableDeliveries();
+
+      if (!mounted) return;
+
       setState(() {
-        _isOnline = !_isOnline;
+        _availableCourses = deliveries;
+        _isLoading = false;
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            _isOnline
-                ? 'Vous êtes maintenant en ligne'
-                : 'Vous êtes maintenant hors ligne',
-          ),
-          backgroundColor: _isOnline ? AppColors.success : AppColors.offline,
-        ),
+      print('✅ DashboardScreen: ${deliveries.length} livraisons chargées');
+    } catch (e) {
+      print('❌ DashboardScreen: Erreur lors du chargement: $e');
+      if (!mounted) return;
+
+      setState(() => _isLoading = false);
+
+      ToastUtils.showError(
+        context,
+        ErrorMessages.fromException(e),
+        title: 'Erreur de chargement',
       );
+    }
+  }
+
+  void _toggleOnlineStatus() async {
+    // Vérifier d'abord si le compte est validé
+    if (!_isAccountValidated) {
+      ToastUtils.showWarning(
+        context,
+        'Votre compte doit être validé par un administrateur avant de pouvoir passer en ligne',
+        title: 'Compte en attente',
+      );
+      return;
+    }
+
+    if (_remainingDeliveries > 0) {
+      final newStatus = !_isOnline;
+
+      try {
+        // Appeler le backend pour mettre à jour la disponibilité
+        final actualStatus = await ref.read(delivererProvider.notifier)
+            .updateAvailability(newStatus);
+
+        if (!mounted) return;
+
+        setState(() {
+          _isOnline = actualStatus;
+        });
+
+        if (actualStatus) {
+          ToastUtils.showSuccess(
+            context,
+            'Vous êtes maintenant en ligne',
+            title: 'En ligne',
+          );
+        } else {
+          ToastUtils.showInfo(
+            context,
+            'Vous êtes maintenant hors ligne',
+            title: 'Hors ligne',
+          );
+        }
+      } catch (e) {
+        ToastUtils.showError(
+          context,
+          'Erreur lors du changement de statut',
+          title: 'Erreur',
+        );
+      }
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Rechargez votre quota pour passer en ligne'),
-          backgroundColor: AppColors.warning,
-        ),
+      ToastUtils.showWarning(
+        context,
+        'Rechargez votre quota pour passer en ligne',
+        title: 'Quota insuffisant',
       );
     }
   }
@@ -213,39 +205,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     // Refresh quota if purchase was successful
     if (result != null && mounted) {
-      setState(() {
-        // TODO: Update with actual new quota from backend
-        _remainingDeliveries += 5; // Placeholder
-      });
+      // Recharger les données de quota depuis le backend
+      await _loadQuotaData();
     }
   }
 
   void _viewCourseDetails(DeliveryModel delivery) async {
     // Block acceptance of new courses if there's already an ongoing delivery
     if (_ongoingCourses.isNotEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Vous avez déjà une course en cours. Terminez-la avant d\'en accepter une nouvelle.',
-          ),
-          backgroundColor: AppColors.warning,
-          action: SnackBarAction(
-            label: 'Voir',
-            textColor: AppColors.textWhite,
-            onPressed: () {
-              // Navigate to the ongoing delivery tracking screen
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => CourseDetailsScreen(
-                    delivery: _ongoingCourses.first,
-                    remainingQuota: _remainingDeliveries,
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
+      ToastUtils.showWarning(
+        context,
+        'Vous avez déjà une course en cours. Terminez-la avant d\'en accepter une nouvelle.',
+        title: 'Course en cours',
       );
       return; // Exit without allowing to view the new course details
     }
@@ -262,23 +233,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     // Refresh if course was accepted
     if (result == true && mounted) {
-      setState(() {
-        // TODO: Update with actual data from backend
-        _remainingDeliveries -= 1; // Deduct quota
-
-        // En mode normal : Supprimer la course
-        if (!SimulationService().isSimulationMode) {
-          _availableCourses.remove(delivery);
-        } else {
-          // En mode simulation : Mettre à jour le statut pour bloquer les autres
-          final index = _availableCourses.indexWhere((c) => c.id == delivery.id);
-          if (index != -1) {
-            _availableCourses[index] = _availableCourses[index].copyWith(
-              status: DeliveryStatus.accepted,
-            );
-          }
-        }
-      });
+      // Recharger les données de quota et les livraisons depuis l'API
+      await _loadQuotaData();
+      await _loadAvailableDeliveries();
     }
   }
 
@@ -335,31 +292,100 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return difference.inMinutes < 5;
   }
 
-  void _toggleSimulationMode() {
-    setState(() {
-      SimulationService().toggleSimulation();
-      if (SimulationService().isSimulationMode) {
-        // En mode simulation, charger les courses mockées
-        _availableCourses.clear();
-        _availableCourses.addAll(SimulationService().getSimulationDeliveries());
-      } else {
-        // En mode normal, recharger les vraies courses (TODO: API call)
-        _availableCourses.clear();
-        // Ici on devrait recharger depuis l'API
-      }
-    });
+  void _toggleSimulationMode() async {
+    SimulationService().toggleSimulation();
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          SimulationService().isSimulationMode
-              ? 'Mode simulation activé - Courses mockées chargées'
-              : 'Mode simulation désactivé - Courses réelles',
-        ),
-        backgroundColor: SimulationService().isSimulationMode
-            ? AppColors.warning
-            : AppColors.success,
-        duration: const Duration(seconds: 2),
+    if (SimulationService().isSimulationMode) {
+      ToastUtils.showWarning(
+        context,
+        'Rechargement des données...',
+        title: 'Mode simulation activé',
+      );
+    } else {
+      ToastUtils.showSuccess(
+        context,
+        'Rechargement des données...',
+        title: 'Mode simulation désactivé',
+      );
+    }
+
+    // Recharger les livraisons depuis l'API (simulation ou réelle)
+    await _loadAvailableDeliveries();
+  }
+
+  /// Bannière affichant le statut de validation du compte
+  Widget _buildValidationBanner() {
+    final kycStatus = _deliverer?.kycStatus ?? KycStatus.pending;
+
+    Color backgroundColor;
+    Color borderColor;
+    Color textColor;
+    IconData icon;
+
+    switch (kycStatus) {
+      case KycStatus.pending:
+        backgroundColor = AppColors.warning.withValues(alpha: 0.1);
+        borderColor = AppColors.warning.withValues(alpha: 0.3);
+        textColor = AppColors.warning;
+        icon = Icons.hourglass_empty;
+        break;
+      case KycStatus.approved:
+        backgroundColor = AppColors.success.withValues(alpha: 0.1);
+        borderColor = AppColors.success.withValues(alpha: 0.3);
+        textColor = AppColors.success;
+        icon = Icons.verified;
+        break;
+      case KycStatus.rejected:
+        backgroundColor = AppColors.error.withValues(alpha: 0.1);
+        borderColor = AppColors.error.withValues(alpha: 0.3);
+        textColor = AppColors.error;
+        icon = Icons.error_outline;
+        break;
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: AppSizes.spacingMd),
+      padding: const EdgeInsets.all(AppSizes.paddingMd),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(AppSizes.radiusMd),
+        border: Border.all(color: borderColor, width: 1),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: textColor.withValues(alpha: 0.2),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: textColor, size: 24),
+          ),
+          const SizedBox(width: AppSizes.spacingMd),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  kycStatus.displayName,
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: textColor,
+                      ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  kycStatus == KycStatus.pending
+                      ? 'Vous ne pouvez pas encore accepter de courses'
+                      : kycStatus.description,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -441,10 +467,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ],
       ),
       body: RefreshIndicator(
-        onRefresh: () async {
-          // TODO: Implement refresh logic
-          await Future.delayed(const Duration(seconds: 1));
-        },
+        onRefresh: _loadAvailableDeliveries,
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.all(AppSizes.paddingMd),
@@ -532,6 +555,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 const SizedBox(height: AppSizes.spacingMd),
               ],
 
+              // Validation Status Banner (si compte non validé)
+              if (_deliverer != null && !_isAccountValidated)
+                _buildValidationBanner(),
+
               // Quick Stats Card (nouveau)
               QuickStatsCard(
                 earningsToday: _earningsToday,
@@ -559,6 +586,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 isOnline: _isOnline,
                 remainingDeliveries: _remainingDeliveries,
                 totalQuota: _totalQuota,
+                hasActiveQuota: _hasActiveQuota,
                 onToggleOnline: _toggleOnlineStatus,
                 onRechargeQuota: _rechargeQuota,
               ),
@@ -708,7 +736,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
         ),
       ),
-      floatingActionButton: const QuickActionsFab(),
     );
   }
 }

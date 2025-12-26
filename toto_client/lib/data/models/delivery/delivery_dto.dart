@@ -1,8 +1,52 @@
+/// DTO pour les informations du livreur
+class DelivererInfoDto {
+  final String id;
+  final String fullName;
+  final String phoneNumber;
+  final String? photoUrl;
+  final double rating;
+  final String? vehicleType;
+  final String? licensePlate;
+
+  const DelivererInfoDto({
+    required this.id,
+    required this.fullName,
+    required this.phoneNumber,
+    this.photoUrl,
+    this.rating = 0.0,
+    this.vehicleType,
+    this.licensePlate,
+  });
+
+  factory DelivererInfoDto.fromJson(Map<String, dynamic> json) {
+    return DelivererInfoDto(
+      id: json['id'] ?? '',
+      fullName: json['full_name'] ?? 'Livreur',
+      phoneNumber: json['phone_number'] ?? '',
+      photoUrl: json['photo_url'],
+      rating: (json['rating'] ?? 0).toDouble(),
+      vehicleType: json['vehicle_type'],
+      licensePlate: json['license_plate'],
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'full_name': fullName,
+    'phone_number': phoneNumber,
+    'photo_url': photoUrl,
+    'rating': rating,
+    'vehicle_type': vehicleType,
+    'license_plate': licensePlate,
+  };
+}
+
 /// DTO pour une livraison (correspond au modèle backend)
 class DeliveryDto {
   final String id;
   final String clientId;
   final String? delivererId;
+  final DelivererInfoDto? deliverer; // Informations complètes du livreur
   final String pickupAddress;
   final double pickupLatitude;
   final double pickupLongitude;
@@ -32,6 +76,7 @@ class DeliveryDto {
     required this.id,
     required this.clientId,
     this.delivererId,
+    this.deliverer,
     required this.pickupAddress,
     required this.pickupLatitude,
     required this.pickupLongitude,
@@ -63,6 +108,9 @@ class DeliveryDto {
       id: json['id'] ?? '',
       clientId: json['client_id'] ?? '',
       delivererId: json['deliverer_id'],
+      deliverer: json['deliverer'] != null
+          ? DelivererInfoDto.fromJson(json['deliverer'] as Map<String, dynamic>)
+          : null,
       pickupAddress: json['pickup_address'] ?? '',
       pickupLatitude: (json['pickup_latitude'] ?? 0).toDouble(),
       pickupLongitude: (json['pickup_longitude'] ?? 0).toDouble(),
@@ -106,6 +154,7 @@ class DeliveryDto {
         'id': id,
         'client_id': clientId,
         'deliverer_id': delivererId,
+        'deliverer': deliverer?.toJson(),
         'pickup_address': pickupAddress,
         'pickup_latitude': pickupLatitude,
         'pickup_longitude': pickupLongitude,

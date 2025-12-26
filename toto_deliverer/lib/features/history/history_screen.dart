@@ -3,8 +3,9 @@ import 'package:intl/intl.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_sizes.dart';
 import '../../core/constants/app_strings.dart';
+import '../../core/utils/toast_utils.dart';
+import '../../core/utils/error_messages.dart';
 import '../../shared/models/delivery_model.dart';
-import '../../shared/models/user_model.dart';
 import '../../shared/widgets/widgets.dart';
 import 'widgets/history_filters_sheet.dart';
 import 'widgets/history_stats_card.dart';
@@ -20,74 +21,9 @@ class _HistoryScreenState extends State<HistoryScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
-  // Mock data - À remplacer par les données réelles du backend
-  final List<DeliveryModel> _completedDeliveries = [
-    DeliveryModel(
-      id: 'DEL003',
-      customerId: 'USER003',
-      package: PackageModel(size: PackageSize.medium, weight: 3.0),
-      pickupAddress: AddressModel(
-        address: 'Plateau, Abidjan',
-        latitude: 5.316667,
-        longitude: -4.033333,
-      ),
-      deliveryAddress: AddressModel(
-        address: 'Cocody, Abidjan',
-        latitude: 5.350000,
-        longitude: -3.983333,
-      ),
-      mode: DeliveryMode.standard,
-      price: 3500,
-      status: DeliveryStatus.delivered,
-      hasInsurance: false,
-      createdAt: DateTime.now().subtract(const Duration(hours: 2)),
-      deliveredAt: DateTime.now().subtract(const Duration(hours: 1)),
-    ),
-    DeliveryModel(
-      id: 'DEL004',
-      customerId: 'USER004',
-      package: PackageModel(size: PackageSize.small, weight: 1.5),
-      pickupAddress: AddressModel(
-        address: 'Marcory, Abidjan',
-        latitude: 5.283333,
-        longitude: -3.983333,
-      ),
-      deliveryAddress: AddressModel(
-        address: 'Deux Plateaux, Abidjan',
-        latitude: 5.366667,
-        longitude: -4.000000,
-      ),
-      mode: DeliveryMode.express,
-      price: 4500,
-      status: DeliveryStatus.delivered,
-      hasInsurance: true,
-      createdAt: DateTime.now().subtract(const Duration(days: 1)),
-      deliveredAt: DateTime.now().subtract(const Duration(days: 1, hours: -1)),
-    ),
-  ];
-
-  final List<DeliveryModel> _cancelledDeliveries = [
-    DeliveryModel(
-      id: 'DEL005',
-      customerId: 'USER005',
-      package: PackageModel(size: PackageSize.large, weight: 8.0),
-      pickupAddress: AddressModel(
-        address: 'Yopougon, Abidjan',
-        latitude: 5.333333,
-        longitude: -4.083333,
-      ),
-      deliveryAddress: AddressModel(
-        address: 'Abobo, Abidjan',
-        latitude: 5.416667,
-        longitude: -4.016667,
-      ),
-      mode: DeliveryMode.standard,
-      price: 5000,
-      status: DeliveryStatus.cancelled,
-      hasInsurance: false,
-      createdAt: DateTime.now().subtract(const Duration(days: 2)),
-    ),
-  ];
+  // Delivery history - Loaded from API
+  List<DeliveryModel> _completedDeliveries = [];
+  List<DeliveryModel> _cancelledDeliveries = [];
 
   // Filter state
   String? _selectedPeriod;
@@ -98,6 +34,37 @@ class _HistoryScreenState extends State<HistoryScreen>
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _loadHistory();
+  }
+
+  Future<void> _loadHistory() async {
+    try {
+      print('📦 HistoryScreen: Chargement de l\'historique...');
+
+      // TODO: Implémenter getDeliveryHistory() dans HybridDeliveryService
+      // Pour l'instant, on simule avec des listes vides
+      // final history = await _hybridDeliveryService.getDeliveryHistory();
+
+      if (!mounted) return;
+
+      setState(() {
+        // _completedDeliveries = history.where((d) => d.status == DeliveryStatus.delivered).toList();
+        // _cancelledDeliveries = history.where((d) => d.status == DeliveryStatus.cancelled).toList();
+        _completedDeliveries = [];
+        _cancelledDeliveries = [];
+      });
+
+      print('✅ HistoryScreen: Historique chargé');
+    } catch (e) {
+      print('❌ HistoryScreen: Erreur lors du chargement: $e');
+      if (!mounted) return;
+
+      ToastUtils.showError(
+        context,
+        ErrorMessages.fromException(e),
+        title: 'Erreur de chargement',
+      );
+    }
   }
 
   @override
@@ -252,10 +219,7 @@ class _HistoryScreenState extends State<HistoryScreen>
     }
 
     return RefreshIndicator(
-      onRefresh: () async {
-        // TODO: Implement refresh logic
-        await Future.delayed(const Duration(seconds: 1));
-      },
+      onRefresh: _loadHistory,
       child: Column(
         children: [
           // Stats Card

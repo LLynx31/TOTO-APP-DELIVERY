@@ -4,7 +4,8 @@ import '../../shared/models/models.dart';
 /// Contient les données mockées pour tester le workflow complet sans API
 class SimulationConfig {
   // Active/désactive la fonctionnalité de simulation
-  static const bool enableSimulation = true;
+  // Note: Préférer utiliser EnvConfig.enableSimulationMode
+  static const bool enableSimulation = false;
 
   // Liste des livraisons mockées pour la simulation
   static final List<DeliveryModel> mockDeliveries = [

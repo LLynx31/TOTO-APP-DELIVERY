@@ -1,19 +1,25 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_sizes.dart';
 import '../../../core/constants/app_strings.dart';
+import '../../../core/utils/toast_utils.dart';
+import '../../../core/utils/loading_overlay.dart';
+import '../../../core/utils/error_messages.dart';
 import '../../../shared/widgets/widgets.dart';
+import '../providers/auth_provider.dart';
 
-class SignupScreen extends StatefulWidget {
+class SignupScreen extends ConsumerStatefulWidget {
   const SignupScreen({super.key});
 
   @override
-  State<SignupScreen> createState() => _SignupScreenState();
+  ConsumerState<SignupScreen> createState() => _SignupScreenState();
 }
 
-class _SignupScreenState extends State<SignupScreen> {
+class _SignupScreenState extends ConsumerState<SignupScreen> {
   final _formKey = GlobalKey<FormState>();
   final _firstNameController = TextEditingController();
   final _lastNameController = TextEditingController();
@@ -21,13 +27,14 @@ class _SignupScreenState extends State<SignupScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+  final _vehicleTypeController = TextEditingController();
+  final _vehicleRegistrationController = TextEditingController();
 
   // Document files
   File? _drivingLicenseImage;
   File? _idPhotoImage;
   File? _vehiclePhotoImage;
 
-  bool _isLoading = false;
   bool _acceptedTerms = false;
   final ImagePicker _picker = ImagePicker();
 
@@ -39,6 +46,8 @@ class _SignupScreenState extends State<SignupScreen> {
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
+    _vehicleTypeController.dispose();
+    _vehicleRegistrationController.dispose();
     super.dispose();
   }
 
@@ -68,59 +77,153 @@ class _SignupScreenState extends State<SignupScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Erreur lors de la prise de photo: $e'),
-            backgroundColor: AppColors.error,
-          ),
+        ToastUtils.showError(
+          context,
+          'Erreur lors de la prise de photo: $e',
+          title: 'Erreur photo',
         );
       }
     }
   }
 
-  void _handleSignup() {
+  Future<void> _handleSignup() async {
     if (!_formKey.currentState!.validate()) {
       return;
     }
 
     if (!_acceptedTerms) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Veuillez accepter les conditions d\'utilisation'),
-          backgroundColor: AppColors.warning,
-        ),
+      ToastUtils.showWarning(
+        context,
+        'Veuillez accepter les conditions d\'utilisation',
+        title: 'Conditions requises',
       );
       return;
     }
 
-    if (_drivingLicenseImage == null || _idPhotoImage == null || _vehiclePhotoImage == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Veuillez télécharger tous les documents requis'),
-          backgroundColor: AppColors.warning,
-        ),
+    // Note: Les documents sont optionnels pour l'instant
+    // L'admin validera le compte après vérification manuelle des documents
+    // Les documents seront uploadés via un endpoint séparé (à implémenter)
+
+    LoadingOverlay.show(context, message: 'Inscription en cours...');
+
+    try {
+      print('📝 SignupScreen: Tentative d\'inscription...');
+      print('📞 Phone: ${_phoneController.text}');
+
+      // Combiner firstName et lastName en fullName
+      final fullName = '${_firstNameController.text.trim()} ${_lastNameController.text.trim()}';
+
+      // Appeler l'API via AuthProvider
+      await ref.read(authProvider.notifier).register(
+        phoneNumber: _phoneController.text.trim(),
+        password: _passwordController.text,
+        fullName: fullName,
+        email: _emailController.text.trim().isEmpty ? null : _emailController.text.trim(),
+        vehicleType: _vehicleTypeController.text.trim(),
+        vehicleRegistration: _vehicleRegistrationController.text.trim(),
       );
-      return;
-    }
 
-    setState(() => _isLoading = true);
+      if (!mounted) return;
 
-    // TODO: Implement signup logic with KYC document upload
-    Future.delayed(const Duration(seconds: 2), () {
-      if (mounted) {
-        setState(() => _isLoading = false);
-        // Show success message
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Inscription réussie ! Votre compte est en cours de vérification.'),
-            backgroundColor: AppColors.success,
-            duration: Duration(seconds: 3),
+      print('✅ SignupScreen: Inscription réussie!');
+      await LoadingOverlay.hide();
+
+      if (!mounted) return;
+
+      // TODO: Upload KYC documents (driving license, ID, vehicle photos) via separate API endpoint
+      // For now, documents are captured but will be uploaded in a future implementation
+
+      // Show success dialog with validation info
+      if (!mounted) return;
+
+      await showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => AlertDialog(
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.success.withValues(alpha: 0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.check_circle, color: AppColors.success, size: 32),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(child: Text('Inscription réussie!')),
+            ],
           ),
-        );
-        // Navigate back to login
-        Navigator.pop(context);
-      }
-    });
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Votre compte a été créé avec succès.',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.warning.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: AppColors.warning.withValues(alpha: 0.3)),
+                ),
+                child: const Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.hourglass_empty, color: AppColors.warning, size: 20),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Votre compte est en attente de validation par un administrateur. '
+                        'Vous recevrez une notification dès que votre compte sera activé.',
+                        style: TextStyle(fontSize: 13),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'Vous pouvez vous connecter, mais vous ne pourrez pas accepter de courses '
+                'avant la validation de votre compte.',
+                style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+              ),
+            ],
+          ),
+          actions: [
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(context).pop(); // Close dialog
+                Navigator.of(context).pop(); // Go back to login
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: AppColors.textWhite,
+              ),
+              child: const Text('Compris'),
+            ),
+          ],
+        ),
+      );
+
+    } catch (e) {
+      print('❌ SignupScreen: Erreur d\'inscription: $e');
+
+      // Always hide loading overlay first
+      await LoadingOverlay.hide();
+
+      if (!mounted) return;
+
+      // Afficher l'erreur avec message user-friendly
+      ToastUtils.showError(
+        context,
+        ErrorMessages.signupError(e),
+        title: 'Échec d\'inscription',
+      );
+    }
   }
 
   @override
@@ -236,6 +339,38 @@ class _SignupScreenState extends State<SignupScreen> {
 
                   const SizedBox(height: AppSizes.spacingMd),
 
+                  // Vehicle Type
+                  CustomTextField(
+                    label: 'Type de véhicule',
+                    hint: 'Moto, Voiture, Vélo...',
+                    controller: _vehicleTypeController,
+                    prefixIcon: const Icon(Icons.two_wheeler_outlined),
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return AppStrings.requiredField;
+                      }
+                      return null;
+                    },
+                  ),
+
+                  const SizedBox(height: AppSizes.spacingMd),
+
+                  // Vehicle Registration
+                  CustomTextField(
+                    label: 'Plaque d\'immatriculation',
+                    hint: 'AB 1234 CI',
+                    controller: _vehicleRegistrationController,
+                    prefixIcon: const Icon(Icons.pin_outlined),
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return AppStrings.requiredField;
+                      }
+                      return null;
+                    },
+                  ),
+
+                  const SizedBox(height: AppSizes.spacingMd),
+
                   // Password
                   CustomTextField(
                     label: AppStrings.password,
@@ -341,7 +476,6 @@ class _SignupScreenState extends State<SignupScreen> {
                   CustomButton(
                     text: AppStrings.signup,
                     onPressed: _handleSignup,
-                    isLoading: _isLoading,
                   ),
 
                   const SizedBox(height: AppSizes.spacingLg),
@@ -402,12 +536,18 @@ class _SignupScreenState extends State<SignupScreen> {
                 child: file != null
                     ? ClipRRect(
                         borderRadius: BorderRadius.circular(AppSizes.radiusSm),
-                        child: Image.file(
-                          file,
-                          fit: BoxFit.cover,
-                        ),
+                        child: kIsWeb
+                            ? const Icon(
+                                Icons.check_circle,
+                                color: AppColors.success,
+                                size: 32,
+                              )
+                            : Image.file(
+                                file,
+                                fit: BoxFit.cover,
+                              ),
                       )
-                    : Icon(
+                    : const Icon(
                         Icons.camera_alt_outlined,
                         color: AppColors.textSecondary,
                         size: 28,

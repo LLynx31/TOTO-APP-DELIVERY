@@ -4,7 +4,11 @@ import 'dart:async';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_sizes.dart';
 import '../../core/constants/app_strings.dart';
+import '../../core/services/hybrid_delivery_service.dart';
 import '../../core/utils/delivery_utils.dart';
+import '../../core/utils/toast_utils.dart';
+import '../../core/utils/loading_overlay.dart';
+import '../../core/utils/error_messages.dart';
 import '../../shared/models/delivery_model.dart';
 import '../../shared/widgets/widgets.dart';
 import '../tracking/tracking_screen.dart';
@@ -25,9 +29,9 @@ class CourseDetailsScreen extends StatefulWidget {
 
 class _CourseDetailsScreenState extends State<CourseDetailsScreen> {
   final Completer<GoogleMapController> _controller = Completer();
+  final _hybridDeliveryService = HybridDeliveryService();
   Set<Marker> _markers = {};
   Set<Polyline> _polylines = {};
-  bool _isLoading = false;
 
   @override
   void initState() {
@@ -102,97 +106,116 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen> {
   Future<void> _acceptCourse() async {
     // Check if deliverer has quota
     if (widget.remainingQuota <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(AppStrings.insufficientQuota),
-          backgroundColor: AppColors.error,
-        ),
+      ToastUtils.showWarning(
+        context,
+        AppStrings.insufficientQuota,
+        title: 'Quota insuffisant',
       );
       return;
     }
 
-    setState(() => _isLoading = true);
+    LoadingOverlay.show(context, message: 'Acceptation de la course...');
 
-    // Simulate API call
-    await Future.delayed(const Duration(seconds: 2));
+    try {
+      print('📦 CourseDetailsScreen: Acceptation de la course ${widget.delivery.id}...');
 
-    if (!mounted) return;
+      // Appeler l'API via HybridDeliveryService
+      final acceptedDelivery = await _hybridDeliveryService.acceptDelivery(widget.delivery.id);
 
-    setState(() => _isLoading = false);
+      if (!mounted) return;
 
-    // Show success dialog
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          icon: const Icon(
-            Icons.check_circle_outline,
-            color: AppColors.success,
-            size: 64,
-          ),
-          title: const Text(
-            'Course acceptée !',
-            textAlign: TextAlign.center,
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'Votre quota a été mis à jour',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: AppColors.textSecondary,
-                    ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: AppSizes.spacingMd),
-              Container(
-                padding: const EdgeInsets.all(AppSizes.paddingMd),
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(AppSizes.radiusMd),
+      print('✅ CourseDetailsScreen: Course acceptée avec succès!');
+      await LoadingOverlay.hide();
+
+      if (!mounted) return;
+
+      // Show success dialog
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            icon: const Icon(
+              Icons.check_circle_outline,
+              color: AppColors.success,
+              size: 64,
+            ),
+            title: const Text(
+              'Course acceptée !',
+              textAlign: TextAlign.center,
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Votre quota a été mis à jour',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                  textAlign: TextAlign.center,
                 ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(
-                      Icons.delivery_dining,
-                      color: AppColors.primary,
-                    ),
-                    const SizedBox(width: AppSizes.spacingSm),
-                    Text(
-                      'Quota restant : ${widget.remainingQuota - 1}',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            color: AppColors.primary,
-                            fontWeight: FontWeight.bold,
-                          ),
-                    ),
-                  ],
+                const SizedBox(height: AppSizes.spacingMd),
+                Container(
+                  padding: const EdgeInsets.all(AppSizes.paddingMd),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(AppSizes.radiusMd),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(
+                        Icons.delivery_dining,
+                        color: AppColors.primary,
+                      ),
+                      const SizedBox(width: AppSizes.spacingSm),
+                      Text(
+                        'Quota restant : ${widget.remainingQuota - 1}',
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              color: AppColors.primary,
+                              fontWeight: FontWeight.bold,
+                            ),
+                      ),
+                    ],
+                  ),
                 ),
+              ],
+            ),
+            actions: [
+              CustomButton(
+                text: 'Commencer la course',
+                onPressed: () async {
+                  Navigator.pop(context); // Close dialog
+                  Navigator.pop(context, true); // Return to dashboard with result
+                  // Navigate to tracking screen with updated delivery
+                  await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => TrackingScreen(
+                        delivery: acceptedDelivery,
+                      ),
+                    ),
+                  );
+                },
               ),
             ],
-          ),
-          actions: [
-            CustomButton(
-              text: 'Commencer la course',
-              onPressed: () async {
-                Navigator.pop(context); // Close dialog
-                Navigator.pop(context, true); // Return to dashboard with result
-                // Navigate to tracking screen
-                await Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => TrackingScreen(
-                      delivery: widget.delivery,
-                    ),
-                  ),
-                );
-              },
-            ),
-          ],
-        );
-      },
-    );
+          );
+        },
+      );
+    } catch (e) {
+      print('❌ CourseDetailsScreen: Erreur lors de l\'acceptation: $e');
+
+      // Always hide loading overlay first
+      await LoadingOverlay.hide();
+
+      if (!mounted) return;
+
+      ToastUtils.showError(
+        context,
+        ErrorMessages.deliveryError(e),
+        title: 'Échec d\'acceptation',
+      );
+    }
   }
 
   @override
@@ -519,8 +542,7 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen> {
               ),
               child: CustomButton(
                 text: AppStrings.acceptCourse,
-                onPressed: _isLoading ? null : _acceptCourse,
-                isLoading: _isLoading,
+                onPressed: _acceptCourse,
               ),
             ),
           ),

@@ -79,4 +79,22 @@ class EnvConfig {
 
   static bool get enableLogging => !isProduction;
   static bool get enableCrashlytics => isProduction;
+
+  /// Feature flags pour l'intégration backend
+
+  /// Active le mode simulation (données mockées)
+  /// - true: utilise SimulationService (pas de backend)
+  /// - false: utilise les vraies API backend
+  static const bool enableSimulationMode = false;
+
+  /// Active les vrais paiements (Mobile Money, etc.)
+  /// - true: intégration avec gateway de paiement réel
+  /// - false: simulation de paiement uniquement
+  static const bool useRealPayments = false;
+
+  /// Timeout pour les requêtes API (en secondes)
+  static const int apiTimeout = 30;
+
+  /// Timeout pour la connexion API (en secondes)
+  static const int connectTimeout = 30;
 }

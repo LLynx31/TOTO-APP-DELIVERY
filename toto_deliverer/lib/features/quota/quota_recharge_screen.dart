@@ -1,16 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_sizes.dart';
 import '../../core/constants/app_strings.dart';
-import '../../core/services/quota_service.dart';
 import '../../shared/models/quota_model.dart';
 import '../../shared/widgets/widgets.dart';
+import 'providers/quota_provider.dart';
+import 'quota_history_screen.dart';
 import 'widgets/quota_pack_card.dart';
 import 'widgets/payment_confirmation_dialog.dart';
 import 'widgets/payment_processing_dialog.dart';
 import 'widgets/payment_receipt_screen.dart';
 
-class QuotaRechargeScreen extends StatefulWidget {
+class QuotaRechargeScreen extends ConsumerStatefulWidget {
   final int currentQuota;
 
   const QuotaRechargeScreen({
@@ -19,13 +21,12 @@ class QuotaRechargeScreen extends StatefulWidget {
   });
 
   @override
-  State<QuotaRechargeScreen> createState() => _QuotaRechargeScreenState();
+  ConsumerState<QuotaRechargeScreen> createState() => _QuotaRechargeScreenState();
 }
 
-class _QuotaRechargeScreenState extends State<QuotaRechargeScreen> {
-  final _quotaService = QuotaService();
+class _QuotaRechargeScreenState extends ConsumerState<QuotaRechargeScreen> {
   QuotaPackType? _selectedPack;
-  PaymentMethod _selectedPaymentMethod = PaymentMethod.mobileMoney;
+  PaymentMethod _selectedPaymentMethod = PaymentMethod.orangeMoney;
   bool _isProcessing = false;
 
   /// Gère le processus de paiement complet
@@ -41,20 +42,20 @@ class _QuotaRechargeScreenState extends State<QuotaRechargeScreen> {
       return;
     }
 
-    // 2. Afficher le dialog de confirmation
+    // 2. Afficher le dialog de confirmation et attendre la réponse
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => PaymentConfirmationDialog(
         pack: _selectedPack!,
         paymentMethod: _selectedPaymentMethod,
-        onConfirm: () {},
       ),
     );
 
-    if (confirmed == null || !mounted) return;
+    // L'utilisateur a annulé ou fermé le dialog
+    if (confirmed != true || !mounted) return;
 
     // 3. Afficher le dialog de processing et effectuer le paiement
-    final success = await showDialog<bool>(
+    final result = await showDialog<dynamic>(
       context: context,
       barrierDismissible: false,
       builder: (context) => PaymentProcessingDialog(
@@ -65,63 +66,83 @@ class _QuotaRechargeScreenState extends State<QuotaRechargeScreen> {
     if (!mounted) return;
 
     // 4. Gérer le résultat
-    if (success == true) {
-      // Succès: naviguer vers l'écran de reçu
+    if (result == true) {
+      // Succès: récupérer le nouveau quota depuis le provider
+      final newQuota = ref.read(quotaProvider).activeQuota;
+      final newRemainingDeliveries = newQuota?.remainingDeliveries ?? 0;
+
+      print('✅ Payment success! New quota: $newRemainingDeliveries deliveries');
+
+      // Naviguer vers l'écran de reçu
       Navigator.of(context).push(
         MaterialPageRoute(
           builder: (context) => PaymentReceiptScreen(
             pack: _selectedPack!,
             paymentMethod: _selectedPaymentMethod,
             previousQuota: widget.currentQuota,
-            newQuota: widget.currentQuota + _selectedPack!.deliveries,
+            newQuota: newRemainingDeliveries,
             transactionId: 'TXN${DateTime.now().millisecondsSinceEpoch}',
           ),
         ),
       );
     } else {
-      // Échec: afficher un message d'erreur
+      // Échec: afficher un message d'erreur détaillé
+      String errorMessage = 'Le paiement a échoué. Veuillez réessayer.';
+
+      // Si on a reçu un objet d'erreur avec plus de détails
+      if (result is Map && result['error'] != null) {
+        final error = result['error'].toString();
+        print('💥 Payment error details: $error');
+
+        // Analyser l'erreur pour donner un message plus clair
+        if (error.contains('401') || error.contains('Unauthorized')) {
+          errorMessage = 'Session expirée. Veuillez vous reconnecter.';
+        } else if (error.contains('403') || error.contains('Forbidden')) {
+          errorMessage = 'Accès refusé. Vérifiez vos permissions.';
+        } else if (error.contains('400') || error.contains('Bad Request')) {
+          errorMessage = 'Données invalides. Veuillez vérifier vos informations.';
+        } else if (error.contains('500') || error.contains('Server Error')) {
+          errorMessage = 'Erreur serveur. Veuillez réessayer plus tard.';
+        } else if (error.contains('Network') || error.contains('Connection')) {
+          errorMessage = 'Problème de connexion. Vérifiez votre internet.';
+        } else {
+          // Inclure une partie du message d'erreur si disponible
+          errorMessage = 'Erreur: ${error.length > 100 ? error.substring(0, 100) + '...' : error}';
+        }
+      }
+
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Le paiement a échoué. Veuillez réessayer.'),
+        SnackBar(
+          content: Text(errorMessage),
           backgroundColor: AppColors.error,
-          duration: Duration(seconds: 4),
+          duration: const Duration(seconds: 6),
+          action: SnackBarAction(
+            label: 'OK',
+            textColor: Colors.white,
+            onPressed: () {
+              ScaffoldMessenger.of(context).hideCurrentSnackBar();
+            },
+          ),
         ),
       );
     }
   }
 
-  /// Traite l'achat de quota via l'API
+  /// Traite l'achat de quota via l'API (JWT-based)
   Future<void> _processPurchase() async {
     try {
-      // Mapper le pack type vers un package ID
-      final packageId = _getPackageId(_selectedPack!);
-
-      // Appel API (simulé pour l'instant car nous n'avons pas l'ID du deliverer)
-      // TODO: Récupérer le vrai deliverer ID depuis l'auth state
-      final delivererId = 'deliverer-id-placeholder';
-
-      await _quotaService.purchaseQuota(
-        delivererId: delivererId,
-        packageId: packageId,
-        paymentMethod: _selectedPaymentMethod.name,
-      );
+      // Utiliser le provider Riverpod pour acheter le quota
+      // Le backend extrait l'ID du livreur depuis le token JWT
+      await ref.read(quotaProvider.notifier).purchaseQuota(
+            packType: _selectedPack!,
+            paymentMethod: _selectedPaymentMethod,
+            // phoneNumber peut être ajouté ici pour Mobile Money si nécessaire
+          );
 
       // Succès
     } catch (e) {
       // Propager l'erreur pour qu'elle soit gérée par le dialog
       rethrow;
-    }
-  }
-
-  /// Mappe un QuotaPackType vers un package ID pour l'API
-  String _getPackageId(QuotaPackType pack) {
-    switch (pack) {
-      case QuotaPackType.pack5:
-        return 'BASIC'; // 5 livraisons
-      case QuotaPackType.pack10:
-        return 'STANDARD'; // 10 livraisons
-      case QuotaPackType.pack20:
-        return 'PREMIUM'; // 20 livraisons
     }
   }
 
@@ -132,6 +153,19 @@ class _QuotaRechargeScreenState extends State<QuotaRechargeScreen> {
         title: Text(AppStrings.rechargeYourQuota),
         backgroundColor: Colors.transparent,
         elevation: 0,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.history),
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => const QuotaHistoryScreen(),
+                ),
+              );
+            },
+            tooltip: 'Historique des achats',
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(AppSizes.paddingMd),
@@ -225,22 +259,74 @@ class _QuotaRechargeScreenState extends State<QuotaRechargeScreen> {
 
             const SizedBox(height: AppSizes.spacingMd),
 
-            ...PaymentMethod.values.map((method) => CustomCard(
-                  child: RadioListTile<PaymentMethod>(
-                    value: method,
-                    groupValue: _selectedPaymentMethod,
-                    onChanged: (value) {
-                      if (value != null) {
-                        setState(() => _selectedPaymentMethod = value);
-                      }
-                    },
-                    title: Text(method.displayName),
-                    activeColor: AppColors.primary,
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: AppSizes.paddingSm,
+            // Grille 2x2 pour les méthodes de paiement mobile
+            GridView.count(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              crossAxisCount: 2,
+              mainAxisSpacing: AppSizes.spacingMd,
+              crossAxisSpacing: AppSizes.spacingMd,
+              childAspectRatio: 1.5,
+              children: PaymentMethod.values.map((method) {
+                final isSelected = _selectedPaymentMethod == method;
+                final brandColor = Color(method.brandColor);
+
+                return GestureDetector(
+                  onTap: () => setState(() => _selectedPaymentMethod = method),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? brandColor.withValues(alpha: 0.15)
+                          : AppColors.surface,
+                      borderRadius: BorderRadius.circular(AppSizes.radiusMd),
+                      border: Border.all(
+                        color: isSelected ? brandColor : AppColors.border,
+                        width: isSelected ? 2 : 1,
+                      ),
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: brandColor,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(
+                            Icons.phone_android,
+                            color: Colors.white,
+                            size: 22,
+                          ),
+                        ),
+                        const SizedBox(height: AppSizes.spacingSm),
+                        Text(
+                          method.shortName,
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                fontWeight: isSelected
+                                    ? FontWeight.bold
+                                    : FontWeight.w500,
+                                color: isSelected
+                                    ? brandColor
+                                    : AppColors.textPrimary,
+                              ),
+                        ),
+                        if (isSelected)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4),
+                            child: Icon(
+                              Icons.check_circle,
+                              color: brandColor,
+                              size: 16,
+                            ),
+                          ),
+                      ],
                     ),
                   ),
-                )),
+                );
+              }).toList(),
+            ),
 
             const SizedBox(height: AppSizes.spacingXl),
 

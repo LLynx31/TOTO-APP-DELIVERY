@@ -13,10 +13,11 @@ class AuthResponse {
   });
 
   factory AuthResponse.fromJson(Map<String, dynamic> json) {
+    // Support both camelCase (from backend) and snake_case formats
     return AuthResponse(
-      accessToken: json['access_token'],
-      refreshToken: json['refresh_token'],
-      deliverer: json['deliverer'],
+      accessToken: json['accessToken'] ?? json['access_token'],
+      refreshToken: json['refreshToken'] ?? json['refresh_token'],
+      deliverer: json['deliverer'] ?? {},
     );
   }
 }
@@ -38,6 +39,10 @@ class AuthService {
     required String vehicleType,
     required String vehicleRegistration,
   }) async {
+    print('📝 AuthService.registerDeliverer() appelé');
+    print('📞 Phone: $phoneNumber');
+    print('🌐 URL: ${ApiConfig.baseUrl}${ApiConfig.authDelivererRegister}');
+
     final response = await _apiClient.post(
       ApiConfig.authDelivererRegister,
       data: {
@@ -46,9 +51,11 @@ class AuthService {
         'full_name': fullName,
         if (email != null) 'email': email,
         'vehicle_type': vehicleType,
-        'vehicle_registration': vehicleRegistration,
+        'license_plate': vehicleRegistration, // Backend attend license_plate
       },
     );
+
+    print('✅ Réponse inscription: ${response.statusCode}');
 
     final authResponse = AuthResponse.fromJson(response.data);
     await _apiClient.saveTokens(
@@ -64,6 +71,10 @@ class AuthService {
     required String phoneNumber,
     required String password,
   }) async {
+    print('🔐 AuthService.loginDeliverer() appelé');
+    print('📞 Phone: $phoneNumber');
+    print('🌐 URL: ${ApiConfig.baseUrl}${ApiConfig.authDelivererLogin}');
+
     final response = await _apiClient.post(
       ApiConfig.authDelivererLogin,
       data: {
@@ -72,12 +83,16 @@ class AuthService {
       },
     );
 
+    print('✅ Réponse reçue du backend: ${response.statusCode}');
+    print('📦 Data keys: ${(response.data as Map<String, dynamic>).keys}');
+
     final authResponse = AuthResponse.fromJson(response.data);
     await _apiClient.saveTokens(
       authResponse.accessToken,
       authResponse.refreshToken,
     );
 
+    print('💾 Tokens sauvegardés avec succès');
     return authResponse;
   }
 

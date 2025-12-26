@@ -98,10 +98,25 @@ class DeliveryRepositoryImpl implements DeliveryRepository {
 
   // Mapper DTO vers Entity
   Delivery _mapDtoToEntity(dynamic dto) {
+    // Mapper les infos du livreur si disponibles
+    DelivererInfo? delivererInfo;
+    if (dto.deliverer != null) {
+      delivererInfo = DelivererInfo(
+        id: dto.deliverer.id,
+        fullName: dto.deliverer.fullName,
+        phoneNumber: dto.deliverer.phoneNumber,
+        photoUrl: dto.deliverer.photoUrl,
+        rating: dto.deliverer.rating,
+        vehicleType: dto.deliverer.vehicleType,
+        licensePlate: dto.deliverer.licensePlate,
+      );
+    }
+
     return Delivery(
       id: dto.id,
       clientId: dto.clientId,
       delivererId: dto.delivererId,
+      deliverer: delivererInfo,
       pickupLocation: Location(
         address: dto.pickupAddress,
         latitude: dto.pickupLatitude,

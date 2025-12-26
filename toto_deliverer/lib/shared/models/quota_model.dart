@@ -121,14 +121,8 @@ class QuotaPurchase {
       id: json['id'] as String,
       deliveries: json['deliveries'] as int,
       price: (json['price'] as num).toDouble(),
-      packType: QuotaPackType.values.firstWhere(
-        (e) => e.name == json['packType'],
-        orElse: () => QuotaPackType.pack5,
-      ),
-      paymentMethod: PaymentMethod.values.firstWhere(
-        (e) => e.name == json['paymentMethod'],
-        orElse: () => PaymentMethod.mobileMoney,
-      ),
+      packType: QuotaPackType.fromBackend(json['packType'] as String?),
+      paymentMethod: PaymentMethod.fromBackend(json['paymentMethod'] as String?),
       purchasedAt: DateTime.parse(json['purchasedAt'] as String),
       isProcessed: json['isProcessed'] as bool? ?? false,
     );
@@ -136,58 +130,154 @@ class QuotaPurchase {
 }
 
 /// Types de packs de quota disponibles
+/// Correspond aux types backend: basic, standard, premium
 enum QuotaPackType {
-  pack5(deliveries: 5, price: 5000, discount: 0),
-  pack10(deliveries: 10, price: 9500, discount: 0.05),
-  pack20(deliveries: 20, price: 18000, discount: 0.10);
+  basic(deliveries: 10, price: 8000, discount: 0, validityDays: 30),
+  standard(deliveries: 50, price: 35000, discount: 0.15, validityDays: 60),
+  premium(deliveries: 100, price: 60000, discount: 0.25, validityDays: 90);
 
   final int deliveries;
   final double price;
   final double discount;
+  final int validityDays;
 
   const QuotaPackType({
     required this.deliveries,
     required this.price,
     required this.discount,
+    required this.validityDays,
   });
+
+  /// Prix par livraison
+  double get pricePerDelivery => price / deliveries;
 
   String get displayName {
     switch (this) {
-      case QuotaPackType.pack5:
-        return 'Pack 5 livraisons';
-      case QuotaPackType.pack10:
-        return 'Pack 10 livraisons';
-      case QuotaPackType.pack20:
-        return 'Pack 20 livraisons';
+      case QuotaPackType.basic:
+        return 'Pack Basic';
+      case QuotaPackType.standard:
+        return 'Pack Standard';
+      case QuotaPackType.premium:
+        return 'Pack Premium';
+    }
+  }
+
+  String get description {
+    switch (this) {
+      case QuotaPackType.basic:
+        return '10 courses - Idéal pour débuter';
+      case QuotaPackType.standard:
+        return '50 courses - Économisez 15%';
+      case QuotaPackType.premium:
+        return '100 courses - Économisez 25%';
     }
   }
 
   String get badgeText {
     switch (this) {
-      case QuotaPackType.pack5:
-        return 'Recommandé';
-      case QuotaPackType.pack10:
-        return '-5%';
-      case QuotaPackType.pack20:
+      case QuotaPackType.basic:
+        return 'Découverte';
+      case QuotaPackType.standard:
+        return '-15%';
+      case QuotaPackType.premium:
         return 'Meilleure valeur';
+    }
+  }
+
+  /// Nom du type pour le backend
+  String get backendName => name;
+
+  /// Crée depuis le nom backend
+  static QuotaPackType fromBackend(String? typeName) {
+    switch (typeName?.toLowerCase()) {
+      case 'basic':
+        return QuotaPackType.basic;
+      case 'standard':
+        return QuotaPackType.standard;
+      case 'premium':
+        return QuotaPackType.premium;
+      default:
+        return QuotaPackType.basic;
     }
   }
 }
 
 /// Méthodes de paiement disponibles
+/// Note: Chaque opérateur mobile est une méthode distincte
 enum PaymentMethod {
-  mobileMoney,
-  bankTransfer,
-  cash;
+  orangeMoney,
+  mtnMoney,
+  moovMoney,
+  wave;
 
   String get displayName {
     switch (this) {
-      case PaymentMethod.mobileMoney:
-        return 'Mobile Money';
-      case PaymentMethod.bankTransfer:
-        return 'Virement Bancaire';
-      case PaymentMethod.cash:
-        return 'Espèces';
+      case PaymentMethod.orangeMoney:
+        return 'Orange Money';
+      case PaymentMethod.mtnMoney:
+        return 'MTN Mobile Money';
+      case PaymentMethod.moovMoney:
+        return 'Moov Money';
+      case PaymentMethod.wave:
+        return 'Wave';
+    }
+  }
+
+  /// Nom court pour affichage compact
+  String get shortName {
+    switch (this) {
+      case PaymentMethod.orangeMoney:
+        return 'Orange';
+      case PaymentMethod.mtnMoney:
+        return 'MTN';
+      case PaymentMethod.moovMoney:
+        return 'Moov';
+      case PaymentMethod.wave:
+        return 'Wave';
+    }
+  }
+
+  /// Couleur de la marque
+  int get brandColor {
+    switch (this) {
+      case PaymentMethod.orangeMoney:
+        return 0xFFFF6600; // Orange
+      case PaymentMethod.mtnMoney:
+        return 0xFFFFCC00; // Jaune MTN
+      case PaymentMethod.moovMoney:
+        return 0xFF0066CC; // Bleu Moov
+      case PaymentMethod.wave:
+        return 0xFF1DC7EA; // Bleu Wave
+    }
+  }
+
+  /// Nom pour le backend
+  String get backendName {
+    switch (this) {
+      case PaymentMethod.orangeMoney:
+        return 'orange_money';
+      case PaymentMethod.mtnMoney:
+        return 'mtn_money';
+      case PaymentMethod.moovMoney:
+        return 'moov_money';
+      case PaymentMethod.wave:
+        return 'wave';
+    }
+  }
+
+  /// Parse depuis le backend
+  static PaymentMethod fromBackend(String? name) {
+    switch (name?.toLowerCase()) {
+      case 'orange_money':
+        return PaymentMethod.orangeMoney;
+      case 'mtn_money':
+        return PaymentMethod.mtnMoney;
+      case 'moov_money':
+        return PaymentMethod.moovMoney;
+      case 'wave':
+        return PaymentMethod.wave;
+      default:
+        return PaymentMethod.orangeMoney;
     }
   }
 }

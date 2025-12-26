@@ -5,6 +5,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
 import { DeliveriesModule } from './deliveries/deliveries.module';
+import { DeliverersModule } from './deliverers/deliverers.module';
 import { TrackingModule } from './tracking/tracking.module';
 import { QuotasModule } from './quotas/quotas.module';
 import { AdminModule } from './admin/admin.module';
@@ -33,6 +34,7 @@ import { RatingsModule } from './ratings/ratings.module';
     }),
     AuthModule,
     DeliveriesModule,
+    DeliverersModule,
     TrackingModule,
     QuotasModule,
     AdminModule,

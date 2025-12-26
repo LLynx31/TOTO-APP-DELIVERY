@@ -11,7 +11,14 @@ class ApiConfig {
   static const String authRefresh = '/auth/refresh';
   static const String authLogout = '/auth/logout';
 
-  // Deliverers
+  // Deliverers - Profile (via JWT, pas d'ID)
+  static const String delivererMe = '/deliverers/me';
+  static const String delivererMeStats = '/deliverers/me/stats';
+  static const String delivererMeStatsDaily = '/deliverers/me/stats/daily';
+  static const String delivererMeAvailability = '/deliverers/me/availability';
+  static const String delivererMeEarnings = '/deliverers/me/earnings';
+
+  // Deliverers - Par ID (pour admin)
   static String delivererById(String id) => '/deliverers/$id';
   static String delivererStatus(String id) => '/deliverers/$id/status';
   static String delivererDocuments(String id) => '/deliverers/$id/documents';
@@ -20,17 +27,21 @@ class ApiConfig {
 
   // Deliveries
   static const String deliveries = '/deliveries';
-  static const String deliveriesAvailable = '/deliveries/available';
-  static const String deliveriesActive = '/deliveries/active';
-  static const String deliveriesCompleted = '/deliveries/completed';
+  // Note: Les endpoints available/active/completed utilisent /deliveries avec query params
+  // Ex: /deliveries?status=pending pour available
+  static const String deliveriesAvailable = '/deliveries'; // + ?status=pending
+  static const String deliveriesActive = '/deliveries'; // Filtrage côté client
+  static const String deliveriesCompleted = '/deliveries'; // + ?status=delivered
+
   static String deliveryById(String id) => '/deliveries/$id';
   static String deliveryAccept(String id) => '/deliveries/$id/accept';
-  static String deliveryStartPickup(String id) => '/deliveries/$id/start-pickup';
-  static String deliveryConfirmPickup(String id) => '/deliveries/$id/confirm-pickup';
-  static String deliveryStartDelivery(String id) => '/deliveries/$id/start-delivery';
-  static String deliveryConfirmDelivery(String id) => '/deliveries/$id/confirm-delivery';
   static String deliveryCancel(String id) => '/deliveries/$id/cancel';
   static String deliveryProblem(String id) => '/deliveries/$id/problem';
+
+  // Backend unifié: verify-qr remplace confirm-pickup et confirm-delivery
+  static String deliveryVerifyQR(String id) => '/deliveries/$id/verify-qr';
+  // Pour les changements de status via PATCH
+  static String deliveryUpdate(String id) => '/deliveries/$id';
 
   // Rating endpoints (bidirectional rating system)
   static String rateDelivery(String id) => '/deliveries/$id/rate';
@@ -39,11 +50,14 @@ class ApiConfig {
   static String deliveryQRCodes(String id) => '/deliveries/$id/qr-codes';
   static String deliveryTracking(String id) => '/deliveries/$id/tracking';
 
-  // Quotas
-  static String quotasDeliverer(String delivererId) => '/quotas/$delivererId';
-  static const String quotasPurchase = '/quotas/purchase';
+  // Quotas (Backend utilise JWT pour identifier l'utilisateur)
+  static const String quotasActive = '/quotas/active'; // Quota actif (via JWT)
+  static const String quotasMyQuotas = '/quotas/my-quotas'; // Tous les quotas
+  static const String quotasPackages = '/quotas/packages'; // Packs disponibles
+  static const String quotasPurchase = '/quotas/purchase'; // Acheter quota
+  static const String quotasTransactions = '/quotas/transactions'; // Historique achats
+  static String quotasHistory(String quotaId) => '/quotas/$quotaId/history';
   static String quotasTransactionStatus(String id) => '/quotas/transactions/$id/status';
-  static String quotasHistory(String delivererId) => '/quotas/$delivererId/history';
 
   // Notifications
   static const String notifications = '/notifications';

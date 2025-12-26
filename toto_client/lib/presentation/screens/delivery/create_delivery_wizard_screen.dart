@@ -4,7 +4,9 @@ import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_sizes.dart';
 import '../../../core/constants/app_strings.dart';
+import '../../../domain/repositories/delivery_repository.dart';
 import '../../providers/create_delivery_provider.dart';
+import '../../providers/delivery_provider.dart';
 import '../../widgets/custom_button.dart';
 import 'steps/pickup_location_step.dart';
 import 'steps/delivery_location_step.dart';
@@ -276,15 +278,82 @@ class _CreateDeliveryWizardScreenState
     );
   }
 
-  void _submitDelivery() {
-    // TODO: Implémenter la soumission de la livraison
-    // 1. Vérifier le quota
-    // 2. Créer la livraison via l'API
-    // 3. Naviguer vers l'écran de tracking
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Création de la livraison en cours...'),
+  Future<void> _submitDelivery() async {
+    final state = ref.read(createDeliveryProvider);
+
+    // Vérifier que toutes les données sont présentes
+    if (!state.canProceedToStep4) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Veuillez remplir toutes les informations requises'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    // Afficher un indicateur de chargement
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => const Center(
+        child: CircularProgressIndicator(),
       ),
     );
+
+    try {
+      // Créer les paramètres de livraison
+      final params = CreateDeliveryParams(
+        pickupAddress: state.pickupAddress!,
+        pickupLatitude: state.pickupLocation!.latitude,
+        pickupLongitude: state.pickupLocation!.longitude,
+        deliveryAddress: state.deliveryAddress!,
+        deliveryLatitude: state.deliveryLocation!.latitude,
+        deliveryLongitude: state.deliveryLocation!.longitude,
+        deliveryPhone: state.receiverPhone!,
+        receiverName: state.receiverName!,
+        packageDescription: state.packageDescription,
+        packageWeight: state.packageWeight,
+        specialInstructions: state.specialInstructions,
+      );
+
+      // Appeler l'API pour créer la livraison
+      final delivery = await ref.read(deliveriesProvider.notifier).createDelivery(params);
+
+      // Fermer le dialog de chargement
+      if (mounted) Navigator.of(context).pop();
+
+      if (delivery != null) {
+        // Réinitialiser le wizard
+        ref.read(createDeliveryProvider.notifier).reset();
+
+        // Naviguer vers l'écran de tracking
+        if (mounted) {
+          context.go('/tracking/${delivery.id}');
+        }
+      } else {
+        // Afficher une erreur
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Erreur lors de la création de la livraison'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      // Fermer le dialog de chargement en cas d'erreur
+      if (mounted) {
+        Navigator.of(context).pop();
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erreur: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 }

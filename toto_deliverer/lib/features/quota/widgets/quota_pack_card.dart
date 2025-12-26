@@ -19,8 +19,8 @@ class QuotaPackCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bool isRecommended = packType == QuotaPackType.pack5;
-    final bool isBestValue = packType == QuotaPackType.pack20;
+    final bool isRecommended = packType == QuotaPackType.basic;
+    final bool isBestValue = packType == QuotaPackType.premium;
 
     return CustomCard(
       child: InkWell(

@@ -57,8 +57,10 @@ class _PaymentProcessingDialogState extends State<PaymentProcessingDialog> {
       // Fermer le dialog après succès
       Navigator.of(context).pop(true);
     } catch (e) {
+      print('❌ Payment processing error: $e');
       if (!mounted) return;
-      Navigator.of(context).pop(false);
+      // Retourner l'erreur au lieu de juste false
+      Navigator.of(context).pop({'success': false, 'error': e.toString()});
     }
   }
 

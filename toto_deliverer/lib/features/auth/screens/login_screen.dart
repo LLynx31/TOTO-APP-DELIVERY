@@ -1,23 +1,26 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_sizes.dart';
 import '../../../core/constants/app_strings.dart';
+import '../../../core/utils/error_messages.dart';
 import '../../../shared/widgets/widgets.dart';
+import '../providers/auth_provider.dart';
 import '../../home/main_screen.dart';
 import 'signup_screen.dart';
 
-class LoginScreen extends StatefulWidget {
+class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
 
   @override
-  State<LoginScreen> createState() => _LoginScreenState();
+  ConsumerState<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
-  bool _isLoading = false;
+  bool _hideError = false;
 
   @override
   void dispose() {
@@ -26,28 +29,47 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  void _handleLogin() {
-    if (_formKey.currentState!.validate()) {
-      setState(() => _isLoading = true);
+  Future<void> _handleLogin() async {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
 
-      // TODO: Implement login logic
-      Future.delayed(const Duration(seconds: 2), () {
-        if (mounted) {
-          setState(() => _isLoading = false);
-          // Navigate to main screen with all tabs
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder: (context) => const MainScreen(),
-            ),
-          );
-        }
-      });
+    // Réinitialiser le flag pour montrer l'erreur
+    setState(() {
+      _hideError = false;
+    });
+
+    print('🔐 Tentative de connexion...');
+
+    try {
+      await ref.read(authProvider.notifier).login(
+        phoneNumber: _phoneController.text.trim(),
+        password: _passwordController.text,
+      );
+
+      print('✅ Connexion réussie');
+
+      if (!mounted) return;
+
+      // Succès - navigation vers le dashboard
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const MainScreen(),
+        ),
+      );
+    } catch (e) {
+      print('❌ Erreur de connexion: $e');
+      print('📝 L\'erreur sera affichée via le provider state');
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final authState = ref.watch(authProvider);
+    final isLoading = authState.isLoading;
+    final errorMessage = authState.error;
+
     return Scaffold(
       body: GradientBackground(
         child: SafeArea(
@@ -105,7 +127,69 @@ class _LoginScreenState extends State<LoginScreen> {
                       textAlign: TextAlign.center,
                     ),
 
-                    const SizedBox(height: AppSizes.spacingXxl),
+                    const SizedBox(height: AppSizes.spacingXl),
+
+                    // Message d'erreur visible
+                    if (errorMessage != null && !_hideError)
+                      Container(
+                        width: double.infinity,
+                        margin: const EdgeInsets.only(bottom: AppSizes.spacingMd),
+                        padding: const EdgeInsets.all(AppSizes.paddingMd),
+                        decoration: BoxDecoration(
+                          color: AppColors.error.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(AppSizes.radiusMd),
+                          border: Border.all(
+                            color: AppColors.error,
+                            width: 1,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.error_outline,
+                              color: AppColors.error,
+                              size: 24,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Connexion échouée',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleSmall
+                                        ?.copyWith(
+                                          color: AppColors.error,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    ErrorMessages.loginError(errorMessage),
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodyMedium
+                                        ?.copyWith(
+                                          color: AppColors.error,
+                                        ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.close, size: 20),
+                              color: AppColors.error,
+                              onPressed: () {
+                                setState(() {
+                                  _hideError = true;
+                                });
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
 
                     // Phone Field
                     CustomTextField(
@@ -114,6 +198,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       controller: _phoneController,
                       keyboardType: TextInputType.phone,
                       prefixIcon: const Icon(Icons.phone_outlined),
+                      enabled: !isLoading,
                       validator: (value) {
                         if (value == null || value.isEmpty) {
                           return AppStrings.requiredField;
@@ -131,6 +216,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       controller: _passwordController,
                       obscureText: true,
                       prefixIcon: const Icon(Icons.lock_outline),
+                      enabled: !isLoading,
                       validator: (value) {
                         if (value == null || value.isEmpty) {
                           return AppStrings.requiredField;
@@ -147,21 +233,25 @@ class _LoginScreenState extends State<LoginScreen> {
                     // Login Button
                     CustomButton(
                       text: AppStrings.login,
-                      onPressed: _handleLogin,
-                      isLoading: _isLoading,
+                      onPressed: isLoading ? null : _handleLogin,
+                      isLoading: isLoading,
                     ),
 
                     const SizedBox(height: AppSizes.spacingLg),
 
                     // Forgot Password
                     TextButton(
-                      onPressed: () {
-                        // TODO: Navigate to forgot password
-                      },
+                      onPressed: isLoading
+                          ? null
+                          : () {
+                              // TODO: Navigate to forgot password
+                            },
                       child: Text(
                         AppStrings.forgotPassword,
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: AppColors.secondary,
+                              color: isLoading
+                                  ? AppColors.textSecondary
+                                  : AppColors.secondary,
                             ),
                       ),
                     ),
@@ -179,18 +269,22 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                         ),
                         GestureDetector(
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => const SignupScreen(),
-                              ),
-                            );
-                          },
+                          onTap: isLoading
+                              ? null
+                              : () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => const SignupScreen(),
+                                    ),
+                                  );
+                                },
                           child: Text(
                             AppStrings.signup,
                             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                  color: AppColors.primary,
+                                  color: isLoading
+                                      ? AppColors.textSecondary
+                                      : AppColors.primary,
                                   fontWeight: FontWeight.w600,
                                 ),
                           ),

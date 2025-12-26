@@ -88,6 +88,8 @@ class AddressModel {
   final double latitude;
   final double longitude;
   final String? label; // ex: "Maison", "Bureau"
+  final String? phone; // Numéro de téléphone du contact à cette adresse
+  final String? contactName; // Nom du contact (ex: receiver_name pour livraison)
   final bool isDefault;
 
   AddressModel({
@@ -96,6 +98,8 @@ class AddressModel {
     required this.latitude,
     required this.longitude,
     this.label,
+    this.phone,
+    this.contactName,
     this.isDefault = false,
   });
 
@@ -106,6 +110,8 @@ class AddressModel {
       latitude: (json['latitude'] as num).toDouble(),
       longitude: (json['longitude'] as num).toDouble(),
       label: json['label'] as String?,
+      phone: json['phone'] as String?,
+      contactName: json['contactName'] as String?,
       isDefault: json['isDefault'] as bool? ?? false,
     );
   }
@@ -117,6 +123,8 @@ class AddressModel {
       'latitude': latitude,
       'longitude': longitude,
       'label': label,
+      'phone': phone,
+      'contactName': contactName,
       'isDefault': isDefault,
     };
   }
@@ -127,6 +135,8 @@ class AddressModel {
     double? latitude,
     double? longitude,
     String? label,
+    String? phone,
+    String? contactName,
     bool? isDefault,
   }) {
     return AddressModel(
@@ -135,6 +145,8 @@ class AddressModel {
       latitude: latitude ?? this.latitude,
       longitude: longitude ?? this.longitude,
       label: label ?? this.label,
+      phone: phone ?? this.phone,
+      contactName: contactName ?? this.contactName,
       isDefault: isDefault ?? this.isDefault,
     );
   }

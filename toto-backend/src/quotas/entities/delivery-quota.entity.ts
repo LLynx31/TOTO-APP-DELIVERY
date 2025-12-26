@@ -7,7 +7,7 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
 } from 'typeorm';
-import { User } from '../../auth/entities/user.entity';
+import { Deliverer } from '../../auth/entities/deliverer.entity';
 
 export enum QuotaType {
   BASIC = 'basic',
@@ -24,9 +24,9 @@ export class DeliveryQuota {
   @Column({ type: 'uuid' })
   user_id: string;
 
-  @ManyToOne(() => User)
+  @ManyToOne(() => Deliverer)
   @JoinColumn({ name: 'user_id' })
-  user: User;
+  deliverer: Deliverer;
 
   @Column({
     type: 'enum',

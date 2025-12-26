@@ -2,11 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'dart:async';
+import 'dart:math';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_sizes.dart';
 import '../../core/constants/app_strings.dart';
+import '../../core/services/hybrid_delivery_service.dart';
 import '../../core/services/simulation_service.dart';
 import '../../core/utils/delivery_utils.dart';
+import '../../core/utils/toast_utils.dart';
+import '../../core/utils/loading_overlay.dart';
+import '../../core/utils/error_messages.dart';
 import '../../shared/models/delivery_model.dart';
 import '../../shared/widgets/widgets.dart';
 import '../scanner/qr_scanner_screen.dart';
@@ -32,20 +37,33 @@ class TrackingScreen extends StatefulWidget {
 
 class _TrackingScreenState extends State<TrackingScreen> {
   final Completer<GoogleMapController> _controller = Completer();
+  final _hybridDeliveryService = HybridDeliveryService();
   DeliveryStatus _currentStatus = DeliveryStatus.accepted;
   Set<Marker> _markers = {};
   Set<Polyline> _polylines = {};
   LatLng? _currentLocation;
-  bool _isLoading = false;
 
-  // Mock data - TODO: Replace with API calls
-  final String _customerPhone = '+225 07 12 34 56 78';
-  double _mockDistance = 2.5; // km
+  // Distance calculated from GPS coordinates
+  double _distanceKm = 0.0;
 
   // Travel timer for simulation
   Timer? _travelTimer;
   int _remainingTravelSeconds = 0;
   bool _isTraveling = false;
+
+  /// Get customer/receiver phone number from delivery data
+  String get _customerPhone {
+    // For deliverer: use delivery_phone (receiver phone at destination)
+    // The phone is stored in deliveryAddress for the destination
+    return widget.delivery.deliveryAddress.phone ??
+           widget.delivery.pickupAddress.phone ??
+           'Non disponible';
+  }
+
+  /// Get receiver name from delivery data
+  String? get _receiverName {
+    return widget.delivery.deliveryAddress.contactName;
+  }
 
   @override
   void initState() {
@@ -58,6 +76,23 @@ class _TrackingScreenState extends State<TrackingScreen> {
     _travelTimer?.cancel();
     super.dispose();
   }
+
+  /// Calculate distance between two GPS coordinates using Haversine formula
+  double _calculateDistance(double lat1, double lon1, double lat2, double lon2) {
+    const double earthRadius = 6371; // Earth's radius in km
+    final double dLat = _toRadians(lat2 - lat1);
+    final double dLon = _toRadians(lon2 - lon1);
+
+    final double a =
+        (sin(dLat / 2) * sin(dLat / 2)) +
+        cos(_toRadians(lat1)) * cos(_toRadians(lat2)) *
+        (sin(dLon / 2) * sin(dLon / 2));
+
+    final double c = 2 * atan2(sqrt(a), sqrt(1 - a));
+    return earthRadius * c;
+  }
+
+  double _toRadians(double degrees) => degrees * (pi / 180);
 
   void _initializeTracking() {
     setState(() {
@@ -156,15 +191,29 @@ class _TrackingScreenState extends State<TrackingScreen> {
         };
       }
 
-      // Update mock distance based on status
-      if (_currentStatus == DeliveryStatus.accepted ||
-          _currentStatus == DeliveryStatus.pickupInProgress) {
-        _mockDistance = 2.5;
-      } else if (_currentStatus == DeliveryStatus.pickedUp ||
-                 _currentStatus == DeliveryStatus.deliveryInProgress) {
-        _mockDistance = 3.8;
-      } else {
-        _mockDistance = 0.0;
+      // Calculate real distance based on status and current location
+      if (_currentLocation != null) {
+        if (_currentStatus == DeliveryStatus.accepted ||
+            _currentStatus == DeliveryStatus.pickupInProgress) {
+          // Distance to pickup point
+          _distanceKm = _calculateDistance(
+            _currentLocation!.latitude,
+            _currentLocation!.longitude,
+            widget.delivery.pickupAddress.latitude,
+            widget.delivery.pickupAddress.longitude,
+          );
+        } else if (_currentStatus == DeliveryStatus.pickedUp ||
+                   _currentStatus == DeliveryStatus.deliveryInProgress) {
+          // Distance to delivery point
+          _distanceKm = _calculateDistance(
+            _currentLocation!.latitude,
+            _currentLocation!.longitude,
+            widget.delivery.deliveryAddress.latitude,
+            widget.delivery.deliveryAddress.longitude,
+          );
+        } else {
+          _distanceKm = 0.0;
+        }
       }
     });
   }
@@ -200,78 +249,87 @@ class _TrackingScreenState extends State<TrackingScreen> {
   }
 
   void _updateStatus(DeliveryStatus newStatus) async {
-    setState(() => _isLoading = true);
+    try {
+      print('🔄 TrackingScreen: Mise à jour du statut vers ${newStatus.displayName}...');
 
-    // Simulate API call
-    await Future.delayed(const Duration(seconds: 1));
+      // Note: Status updates are handled by specific methods (startPickup, confirmPickup, etc.)
+      // This method is mainly for UI updates after API calls
 
-    if (!mounted) return;
+      if (!mounted) return;
 
-    setState(() {
-      _currentStatus = newStatus;
-      _isLoading = false;
-    });
-
-    _updateMapMarkers();
-
-    // Show success message for intermediate transitions
-    if (newStatus != DeliveryStatus.delivered &&
-        newStatus != DeliveryStatus.pickupInProgress &&
-        newStatus != DeliveryStatus.deliveryInProgress) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('${AppStrings.newStatus} ${newStatus.displayName}'),
-          backgroundColor: AppColors.success,
-        ),
-      );
-    }
-
-    // Automatic transitions
-    // After acceptance → AUTO transition to pickupInProgress
-    if (newStatus == DeliveryStatus.accepted) {
-      Future.delayed(const Duration(milliseconds: 500), () {
-        if (mounted && _currentStatus == DeliveryStatus.accepted) {
-          _updateStatus(DeliveryStatus.pickupInProgress);
-        }
+      setState(() {
+        _currentStatus = newStatus;
       });
-    }
 
-    // After pickupInProgress → Start travel timer in simulation mode (45s)
-    if (newStatus == DeliveryStatus.pickupInProgress && SimulationService().isSimulationMode) {
-      _startTravelTimer(
-        seconds: 45,
-        onComplete: () {
-          // Timer finished - scan button will appear
-        },
-      );
-    }
+      _updateMapMarkers();
 
-    // After pickup → AUTO transition to deliveryInProgress
-    if (newStatus == DeliveryStatus.pickedUp) {
-      Future.delayed(const Duration(milliseconds: 500), () {
-        if (mounted && _currentStatus == DeliveryStatus.pickedUp) {
-          _updateStatus(DeliveryStatus.deliveryInProgress);
-        }
-      });
-    }
+      // Show success message for intermediate transitions
+      if (newStatus != DeliveryStatus.delivered &&
+          newStatus != DeliveryStatus.pickupInProgress &&
+          newStatus != DeliveryStatus.deliveryInProgress) {
+        ToastUtils.showSuccess(
+          context,
+          '${AppStrings.newStatus} ${newStatus.displayName}',
+          title: 'Statut mis à jour',
+        );
+      }
 
-    // After deliveryInProgress → Start travel timer in simulation mode (30s)
-    if (newStatus == DeliveryStatus.deliveryInProgress && SimulationService().isSimulationMode) {
-      _startTravelTimer(
-        seconds: 30,
-        onComplete: () {
-          // Timer finished - scan button will appear
-        },
-      );
-    }
+      // Automatic transitions
+      // After acceptance → AUTO transition to pickupInProgress
+      if (newStatus == DeliveryStatus.accepted) {
+        Future.delayed(const Duration(milliseconds: 500), () {
+          if (mounted && _currentStatus == DeliveryStatus.accepted) {
+            _updateStatus(DeliveryStatus.pickupInProgress);
+          }
+        });
+      }
 
-    // After delivery → Navigate to Success Screen
-    if (newStatus == DeliveryStatus.delivered) {
-      Navigator.pushReplacement(
+      // After pickupInProgress → Start travel timer in simulation mode (45s)
+      if (newStatus == DeliveryStatus.pickupInProgress && SimulationService().isSimulationMode) {
+        _startTravelTimer(
+          seconds: 45,
+          onComplete: () {
+            // Timer finished - scan button will appear
+          },
+        );
+      }
+
+      // After pickup → AUTO transition to deliveryInProgress
+      if (newStatus == DeliveryStatus.pickedUp) {
+        Future.delayed(const Duration(milliseconds: 500), () {
+          if (mounted && _currentStatus == DeliveryStatus.pickedUp) {
+            _updateStatus(DeliveryStatus.deliveryInProgress);
+          }
+        });
+      }
+
+      // After deliveryInProgress → Start travel timer in simulation mode (30s)
+      if (newStatus == DeliveryStatus.deliveryInProgress && SimulationService().isSimulationMode) {
+        _startTravelTimer(
+          seconds: 30,
+          onComplete: () {
+            // Timer finished - scan button will appear
+          },
+        );
+      }
+
+      // After delivery → Navigate to Success Screen
+      if (newStatus == DeliveryStatus.delivered) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => DeliverySuccessScreen(delivery: widget.delivery),
+          ),
+        );
+      }
+    } catch (e) {
+      print('❌ TrackingScreen: Erreur lors de la mise à jour du statut: $e');
+      if (!mounted) return;
+
+      ToastUtils.showError(
         context,
-        MaterialPageRoute(
-          builder: (context) => DeliverySuccessScreen(delivery: widget.delivery),
-        ),
+        ErrorMessages.deliveryError(e),
+        title: 'Erreur de mise à jour',
       );
     }
   }
@@ -294,61 +352,101 @@ class _TrackingScreenState extends State<TrackingScreen> {
       await launchUrl(phoneUri);
     } else {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Impossible d\'appeler le numéro $_customerPhone'),
-          backgroundColor: AppColors.error,
-        ),
+      ToastUtils.showError(
+        context,
+        'Impossible d\'appeler le numéro $_customerPhone',
+        title: 'Erreur d\'appel',
       );
     }
   }
 
-  // Simulation: Scanner QR au point A (pickup)
-  Future<void> _simulateScanPickup() async {
-    setState(() => _isLoading = true);
+  // Scanner QR au point A (pickup) - Utilise HybridDeliveryService
+  Future<void> _handleScanPickup() async {
+    LoadingOverlay.show(context, message: 'Scan en cours...');
 
-    final success = await SimulationService().simulateScanQRPickup(widget.delivery.id);
+    try {
+      print('📦 TrackingScreen: Scan QR pickup pour ${widget.delivery.id}...');
 
-    setState(() => _isLoading = false);
+      // En mode simulation, utiliser le QR code simulé
+      final qrCode = _hybridDeliveryService.isSimulationMode
+          ? 'SIMULATION-PICKUP-${widget.delivery.id}'
+          : 'REAL-QR-CODE'; // Ce sera remplacé par le vrai scan
 
-    if (success) {
+      final updatedDelivery = await _hybridDeliveryService.confirmPickup(
+        widget.delivery.id,
+        qrCode,
+      );
+
+      // Always hide loading overlay first
+      await LoadingOverlay.hide();
+
+      if (!mounted) return;
+
+      print('✅ TrackingScreen: Pickup confirmé!');
       _showSuccessDialog(
         title: 'Colis récupéré !',
         message: 'Le QR code a été scanné avec succès au point A.',
       );
-      _updateStatus(DeliveryStatus.pickedUp);
-    } else {
+      _updateStatus(updatedDelivery.status);
+    } catch (e) {
+      print('❌ TrackingScreen: Erreur lors du scan pickup: $e');
+
+      // Always hide loading overlay first
+      await LoadingOverlay.hide();
+
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Erreur lors du scan (simulation)'),
-          backgroundColor: AppColors.error,
-        ),
+
+      ToastUtils.showError(
+        context,
+        ErrorMessages.fromException(e),
+        title: 'Échec du scan',
       );
     }
   }
 
-  // Simulation: Scanner QR au point B (delivery)
-  Future<void> _simulateScanDelivery() async {
-    setState(() => _isLoading = true);
+  // Scanner QR au point B (delivery) - Utilise HybridDeliveryService
+  Future<void> _handleScanDelivery() async {
+    LoadingOverlay.show(context, message: 'Scan en cours...');
 
-    final success = await SimulationService().simulateScanQRDelivery(widget.delivery.id);
+    try {
+      print('📦 TrackingScreen: Scan QR delivery pour ${widget.delivery.id}...');
 
-    setState(() => _isLoading = false);
+      // En mode simulation, utiliser le QR code simulé
+      final qrCode = _hybridDeliveryService.isSimulationMode
+          ? 'SIMULATION-DELIVERY-${widget.delivery.id}'
+          : 'REAL-QR-CODE'; // Ce sera remplacé par le vrai scan
 
-    if (success) {
+      final updatedDelivery = await _hybridDeliveryService.confirmDelivery(
+        widget.delivery.id,
+        qrCode,
+      );
+
+      if (!mounted) return;
+
+      print('✅ TrackingScreen: Delivery confirmée!');
+
+      // Always hide loading overlay first
+      await LoadingOverlay.hide();
+
+      if (!mounted) return;
+
       _showSuccessDialog(
         title: 'Livraison effectuée !',
         message: 'Le QR code a été scanné avec succès au point B.',
       );
-      _updateStatus(DeliveryStatus.delivered);
-    } else {
+      _updateStatus(updatedDelivery.status);
+    } catch (e) {
+      print('❌ TrackingScreen: Erreur lors du scan delivery: $e');
+
+      // Always hide loading overlay first
+      await LoadingOverlay.hide();
+
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Erreur lors du scan (simulation)'),
-          backgroundColor: AppColors.error,
-        ),
+
+      ToastUtils.showError(
+        context,
+        ErrorMessages.fromException(e),
+        title: 'Échec du scan',
       );
     }
   }
@@ -552,7 +650,7 @@ class _TrackingScreenState extends State<TrackingScreen> {
                   // NEW: ETA & Distance Widget
                   ETADistanceWidget(
                     status: _currentStatus,
-                    distanceKm: _mockDistance,
+                    distanceKm: _distanceKm,
                   ),
                   const SizedBox(height: AppSizes.spacingSm),
 
@@ -688,17 +786,6 @@ class _TrackingScreenState extends State<TrackingScreen> {
               ),
             ),
           ),
-
-          // Loading overlay
-          if (_isLoading)
-            Positioned.fill(
-              child: Container(
-                color: Colors.black.withValues(alpha: 0.3),
-                child: const Center(
-                  child: CircularProgressIndicator(),
-                ),
-              ),
-            ),
         ],
       ),
     );
@@ -806,9 +893,11 @@ class _TrackingScreenState extends State<TrackingScreen> {
 
           // Après le trajet : Afficher le bouton de scan
           return ElevatedButton.icon(
-            onPressed: _simulateScanPickup,
+            onPressed: _handleScanPickup,
             icon: const Icon(Icons.check_circle_outline, size: 20),
-            label: const Text('Simuler scan Point A'),
+            label: Text(_hybridDeliveryService.isSimulationMode
+                ? 'Simuler scan Point A'
+                : 'Scanner QR Point A'),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.success,
               foregroundColor: AppColors.textWhite,
@@ -934,9 +1023,11 @@ class _TrackingScreenState extends State<TrackingScreen> {
 
           // Après le trajet : Afficher le bouton de scan
           return ElevatedButton.icon(
-            onPressed: _simulateScanDelivery,
+            onPressed: _handleScanDelivery,
             icon: const Icon(Icons.check_circle_outline, size: 20),
-            label: const Text('Simuler scan Point B'),
+            label: Text(_hybridDeliveryService.isSimulationMode
+                ? 'Simuler scan Point B'
+                : 'Scanner QR Point B'),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.success,
               foregroundColor: AppColors.textWhite,

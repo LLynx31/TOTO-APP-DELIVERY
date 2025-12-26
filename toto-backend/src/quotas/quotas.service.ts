@@ -5,7 +5,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, In } from 'typeorm';
 import { DeliveryQuota, QuotaType } from './entities/delivery-quota.entity';
 import { QuotaTransaction, TransactionType } from './entities/quota-transaction.entity';
 import { PurchaseQuotaDto } from './dto/purchase-quota.dto';
@@ -72,36 +72,100 @@ export class QuotasService {
       validityDays = packageInfo.validity_days;
     }
 
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + validityDays);
-
-    const quota = this.quotaRepository.create({
-      user_id: userId,
-      quota_type,
-      total_deliveries: totalDeliveries,
-      used_deliveries: 0,
-      remaining_deliveries: totalDeliveries,
-      price_paid: price,
-      payment_method,
-      payment_reference,
-      expires_at: expiresAt,
-      is_active: true,
+    // Vérifier s'il existe déjà un quota actif
+    const existingQuota = await this.quotaRepository.findOne({
+      where: {
+        user_id: userId,
+        is_active: true,
+      },
     });
 
-    await this.quotaRepository.save(quota);
+    console.log(`💰 Purchase for user ${userId}`);
+    console.log(`📦 Package: ${quota_type} (${totalDeliveries} deliveries, ${price} FCFA)`);
+    console.log(`🔍 Existing active quota found: ${existingQuota ? 'YES' : 'NO'}`);
+    if (existingQuota) {
+      console.log(`📊 Current quota: ${existingQuota.remaining_deliveries}/${existingQuota.total_deliveries}`);
+    }
 
-    const transaction = this.transactionRepository.create({
-      quota_id: quota.id,
-      transaction_type: TransactionType.PURCHASE,
-      amount: totalDeliveries,
-      balance_before: 0,
-      balance_after: totalDeliveries,
-      description: `Purchase of ${quota_type} package (${totalDeliveries} deliveries)`,
-    });
+    let savedQuota: DeliveryQuota;
 
-    await this.transactionRepository.save(transaction);
+    if (existingQuota) {
+      // Additionner au quota existant
+      const balanceBefore = existingQuota.remaining_deliveries;
+      existingQuota.total_deliveries += totalDeliveries;
+      existingQuota.remaining_deliveries += totalDeliveries;
 
-    return quota;
+      // Accumuler le prix payé
+      existingQuota.price_paid += price;
+
+      // Mettre à jour la méthode de paiement avec la dernière utilisée
+      if (payment_method) {
+        existingQuota.payment_method = payment_method;
+      }
+      if (payment_reference) {
+        existingQuota.payment_reference = payment_reference;
+      }
+
+      // Étendre la date d'expiration si le nouveau package a une durée plus longue
+      const newExpiresAt = new Date();
+      newExpiresAt.setDate(newExpiresAt.getDate() + validityDays);
+      if (newExpiresAt > existingQuota.expires_at) {
+        existingQuota.expires_at = newExpiresAt;
+      }
+
+      savedQuota = await this.quotaRepository.save(existingQuota);
+
+      console.log(`✅ Quota updated: ${balanceBefore} → ${savedQuota.remaining_deliveries} deliveries`);
+      console.log(`💵 Total price accumulated: ${savedQuota.price_paid} FCFA`);
+
+      // Créer la transaction d'achat avec le balance correct
+      const transaction = this.transactionRepository.create({
+        quota_id: savedQuota.id,
+        transaction_type: TransactionType.PURCHASE,
+        amount: totalDeliveries,
+        balance_before: balanceBefore,
+        balance_after: savedQuota.remaining_deliveries,
+        description: `Purchase of ${quota_type} package (${totalDeliveries} deliveries)`,
+      });
+
+      await this.transactionRepository.save(transaction);
+    } else {
+      // Créer un nouveau quota
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + validityDays);
+
+      const quota = this.quotaRepository.create({
+        user_id: userId,
+        quota_type,
+        total_deliveries: totalDeliveries,
+        used_deliveries: 0,
+        remaining_deliveries: totalDeliveries,
+        price_paid: price,
+        payment_method,
+        payment_reference,
+        expires_at: expiresAt,
+        is_active: true,
+      });
+
+      savedQuota = await this.quotaRepository.save(quota);
+
+      console.log(`✨ New quota created: ${savedQuota.remaining_deliveries} deliveries`);
+      console.log(`💵 Price: ${savedQuota.price_paid} FCFA`);
+
+      const transaction = this.transactionRepository.create({
+        quota_id: savedQuota.id,
+        transaction_type: TransactionType.PURCHASE,
+        amount: totalDeliveries,
+        balance_before: 0,
+        balance_after: totalDeliveries,
+        description: `Purchase of ${quota_type} package (${totalDeliveries} deliveries)`,
+      });
+
+      await this.transactionRepository.save(transaction);
+    }
+
+    // Retourner le quota complet avec tous les champs nécessaires
+    return this.quotaRepository.findOne({ where: { id: savedQuota.id } });
   }
 
   // ==========================================
@@ -240,6 +304,60 @@ export class QuotasService {
       quota,
       transactions,
     };
+  }
+
+  // ==========================================
+  // GET ALL USER TRANSACTIONS (PURCHASE HISTORY)
+  // ==========================================
+  async getUserTransactions(userId: string) {
+    console.log(`📜 getUserTransactions: Fetching transactions for user ${userId}`);
+
+    // Récupérer tous les quotas de l'utilisateur
+    const quotas = await this.quotaRepository.find({
+      where: { user_id: userId },
+    });
+
+    console.log(`✅ Found ${quotas.length} quotas for user`);
+
+    if (quotas.length === 0) {
+      console.log('⚠️ No quotas found, returning empty array');
+      return [];
+    }
+
+    const quotaIds = quotas.map(q => q.id);
+
+    // Récupérer toutes les transactions de type PURCHASE avec relation quota
+    const transactions = await this.transactionRepository.find({
+      where: {
+        quota_id: In(quotaIds),
+        transaction_type: TransactionType.PURCHASE,
+      },
+      relations: ['quota'],
+      order: { created_at: 'DESC' },
+    });
+
+    console.log(`✅ Found ${transactions.length} purchase transactions`);
+
+    // Enrichir les transactions avec les données du quota
+    const enrichedTransactions = transactions.map(transaction => ({
+      id: transaction.id,
+      quota_id: transaction.quota_id,
+      transaction_type: transaction.transaction_type,
+      amount: transaction.amount,
+      balance_before: transaction.balance_before,
+      balance_after: transaction.balance_after,
+      description: transaction.description,
+      created_at: transaction.created_at,
+      // Données du quota associé
+      quota_type: transaction.quota?.quota_type,
+      // Convertir price_paid de string (decimal) en number
+      price_paid: transaction.quota?.price_paid ? parseFloat(transaction.quota.price_paid.toString()) : null,
+      payment_method: transaction.quota?.payment_method,
+    }));
+
+    console.log('📦 Sample transaction:', JSON.stringify(enrichedTransactions[0], null, 2));
+
+    return enrichedTransactions;
   }
 
   // ==========================================

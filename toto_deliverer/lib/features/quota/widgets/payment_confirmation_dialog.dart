@@ -8,13 +8,11 @@ import '../../../shared/widgets/widgets.dart';
 class PaymentConfirmationDialog extends StatelessWidget {
   final QuotaPackType pack;
   final PaymentMethod paymentMethod;
-  final VoidCallback onConfirm;
 
   const PaymentConfirmationDialog({
     super.key,
     required this.pack,
     required this.paymentMethod,
-    required this.onConfirm,
   });
 
   @override
@@ -37,7 +35,7 @@ class PaymentConfirmationDialog extends StatelessWidget {
             child: Column(
               children: [
                 Text(
-                  pack.name,
+                  pack.displayName,
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(
                         fontWeight: FontWeight.bold,
                         color: AppColors.primary,
@@ -83,24 +81,39 @@ class PaymentConfirmationDialog extends StatelessWidget {
 
           const SizedBox(height: AppSizes.spacingMd),
 
-          // Payment method
+          // Payment method - avec couleur de la marque
           Container(
             padding: const EdgeInsets.all(AppSizes.paddingMd),
             decoration: BoxDecoration(
-              border: Border.all(color: AppColors.border),
+              color: Color(paymentMethod.brandColor).withValues(alpha: 0.1),
+              border: Border.all(
+                color: Color(paymentMethod.brandColor).withValues(alpha: 0.3),
+              ),
               borderRadius: BorderRadius.circular(AppSizes.radiusSm),
             ),
             child: Row(
               children: [
-                const Icon(
-                  Icons.payment,
-                  color: AppColors.textSecondary,
-                  size: 20,
+                Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: Color(paymentMethod.brandColor),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: const Icon(
+                    Icons.phone_android,
+                    color: Colors.white,
+                    size: 18,
+                  ),
                 ),
-                const SizedBox(width: AppSizes.spacingSm),
-                Text(
-                  'Paiement via ${paymentMethod.displayName}',
-                  style: Theme.of(context).textTheme.bodyMedium,
+                const SizedBox(width: AppSizes.spacingMd),
+                Expanded(
+                  child: Text(
+                    paymentMethod.displayName,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                  ),
                 ),
               ],
             ),
@@ -138,16 +151,21 @@ class PaymentConfirmationDialog extends StatelessWidget {
         ],
       ),
       actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Annuler'),
-        ),
-        CustomButton(
-          text: 'Confirmer',
-          onPressed: () {
-            Navigator.of(context).pop();
-            onConfirm();
-          },
+        Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Annuler'),
+            ),
+            const SizedBox(width: AppSizes.spacingSm),
+            Expanded(
+              child: CustomButton(
+                text: 'Confirmer',
+                onPressed: () => Navigator.of(context).pop(true),
+              ),
+            ),
+          ],
         ),
       ],
       actionsPadding: const EdgeInsets.all(AppSizes.paddingMd),

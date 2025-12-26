@@ -84,6 +84,20 @@ export class QuotasController {
     return this.quotasService.getActiveQuota(userId);
   }
 
+  @Get('transactions')
+  @ApiOperation({
+    summary: 'Obtenir l\'historique des achats',
+    description: 'Retourne toutes les transactions d\'achat de quotas de l\'utilisateur',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Historique des achats',
+  })
+  async getUserTransactions(@Request() req) {
+    const userId = req.user.id;
+    return this.quotasService.getUserTransactions(userId);
+  }
+
   @Get(':id/history')
   @ApiOperation({
     summary: 'Obtenir l\'historique d\'un quota',

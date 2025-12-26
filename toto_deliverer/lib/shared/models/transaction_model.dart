@@ -84,10 +84,7 @@ class TransactionModel {
       relatedCourseId: json['relatedCourseId'] as String?,
       relatedQuotaPurchaseId: json['relatedQuotaPurchaseId'] as String?,
       paymentMethod: json['paymentMethod'] != null
-          ? PaymentMethod.values.firstWhere(
-              (e) => e.name == json['paymentMethod'],
-              orElse: () => PaymentMethod.mobileMoney,
-            )
+          ? PaymentMethod.fromBackend(json['paymentMethod'] as String?)
           : null,
       status: TransactionStatus.values.firstWhere(
         (e) => e.name == json['status'],

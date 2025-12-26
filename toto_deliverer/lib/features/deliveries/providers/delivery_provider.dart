@@ -1,11 +1,13 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../core/services/delivery_service.dart';
+import '../../../core/services/hybrid_delivery_service.dart';
+import '../../../shared/models/delivery_model.dart';
 
+/// État des livraisons avec types typés (DeliveryModel)
 class DeliveryState {
-  final List<dynamic> availableDeliveries;
-  final List<dynamic> activeDeliveries;
-  final List<dynamic> completedDeliveries;
-  final Map<String, dynamic>? currentDelivery;
+  final List<DeliveryModel> availableDeliveries;
+  final List<DeliveryModel> activeDeliveries;
+  final List<DeliveryModel> completedDeliveries;
+  final DeliveryModel? currentDelivery;
   final bool isLoading;
   final String? error;
 
@@ -19,10 +21,10 @@ class DeliveryState {
   });
 
   DeliveryState copyWith({
-    List<dynamic>? availableDeliveries,
-    List<dynamic>? activeDeliveries,
-    List<dynamic>? completedDeliveries,
-    Map<String, dynamic>? currentDelivery,
+    List<DeliveryModel>? availableDeliveries,
+    List<DeliveryModel>? activeDeliveries,
+    List<DeliveryModel>? completedDeliveries,
+    DeliveryModel? currentDelivery,
     bool? isLoading,
     String? error,
   }) {
@@ -37,8 +39,11 @@ class DeliveryState {
   }
 }
 
+/// Notifier pour gérer les livraisons avec HybridDeliveryService
+///
+/// Utilise automatiquement le mode simulation ou réel selon EnvConfig.enableSimulationMode
 class DeliveryNotifier extends StateNotifier<DeliveryState> {
-  final DeliveryService _deliveryService = DeliveryService();
+  final HybridDeliveryService _deliveryService = HybridDeliveryService();
 
   DeliveryNotifier() : super(DeliveryState());
 

@@ -32,11 +32,36 @@ enum DeliveryStatus {
   }
 }
 
+/// Informations sur le livreur assigné
+class DelivererInfo extends Equatable {
+  final String id;
+  final String fullName;
+  final String phoneNumber;
+  final String? photoUrl;
+  final double rating;
+  final String? vehicleType;
+  final String? licensePlate;
+
+  const DelivererInfo({
+    required this.id,
+    required this.fullName,
+    required this.phoneNumber,
+    this.photoUrl,
+    this.rating = 0.0,
+    this.vehicleType,
+    this.licensePlate,
+  });
+
+  @override
+  List<Object?> get props => [id, fullName, phoneNumber, photoUrl, rating, vehicleType, licensePlate];
+}
+
 /// Entité Delivery (domain layer)
 class Delivery extends Equatable {
   final String id;
   final String clientId;
   final String? delivererId;
+  final DelivererInfo? deliverer; // Informations complètes du livreur
   final Location pickupLocation;
   final Location deliveryLocation;
   final Package package;
@@ -52,6 +77,7 @@ class Delivery extends Equatable {
     required this.id,
     required this.clientId,
     this.delivererId,
+    this.deliverer,
     required this.pickupLocation,
     required this.deliveryLocation,
     required this.package,
@@ -69,6 +95,7 @@ class Delivery extends Equatable {
         id,
         clientId,
         delivererId,
+        deliverer,
         pickupLocation,
         deliveryLocation,
         package,

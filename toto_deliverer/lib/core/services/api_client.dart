@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../config/api_config.dart';
+import '../adapters/base_adapter.dart';
 
 class ApiClient {
   late final Dio _dio;
@@ -26,7 +27,31 @@ class ApiClient {
       ),
     );
 
-    // Intercepteur pour ajouter le token
+    // Intercepteur 1: Transformation automatique snake_case → camelCase
+    _dio.interceptors.add(
+      InterceptorsWrapper(
+        onResponse: (response, handler) {
+          // Auto-transformer les réponses backend en camelCase
+          if (response.data != null) {
+            if (response.data is Map<String, dynamic>) {
+              response.data = BaseAdapter.snakeToCamel(
+                response.data as Map<String, dynamic>,
+              );
+            } else if (response.data is List) {
+              response.data = (response.data as List).map((item) {
+                if (item is Map<String, dynamic>) {
+                  return BaseAdapter.snakeToCamel(item);
+                }
+                return item;
+              }).toList();
+            }
+          }
+          return handler.next(response);
+        },
+      ),
+    );
+
+    // Intercepteur 2: Token + Gestion erreurs
     _dio.interceptors.add(
       InterceptorsWrapper(
         onRequest: (options, handler) async {
@@ -111,6 +136,12 @@ class ApiClient {
     return await _storage.read(key: ApiConfig.refreshTokenKey);
   }
 
+  // Récupérer l'access token (pour WebSocket authentication)
+  Future<String?> getAccessToken() async {
+    // Retourner le token en mémoire ou le lire depuis le storage
+    return _accessToken ?? await _storage.read(key: ApiConfig.accessTokenKey);
+  }
+
   // GET Request
   Future<Response> get(
     String path, {
@@ -180,36 +211,87 @@ class ApiClient {
 
     if (error.response != null) {
       final data = error.response!.data;
-      if (data is Map && data.containsKey('message')) {
-        errorMessage = data['message'];
-      } else {
-        switch (error.response!.statusCode) {
-          case 400:
-            errorMessage = 'Requête invalide';
-            break;
-          case 401:
-            errorMessage = 'Non autorisé. Veuillez vous reconnecter';
-            break;
-          case 403:
-            errorMessage = 'Accès interdit';
-            break;
-          case 404:
-            errorMessage = 'Ressource non trouvée';
-            break;
-          case 500:
-            errorMessage = 'Erreur serveur';
-            break;
-          default:
-            errorMessage = 'Erreur ${error.response!.statusCode}';
+
+      // Vérifier les différents formats d'erreur backend
+      if (data is Map<String, dynamic>) {
+        // Format 1: Backend NestJS standard avec 'message'
+        if (data.containsKey('message')) {
+          final message = data['message'];
+          if (message is String) {
+            errorMessage = message;
+          } else if (message is List) {
+            // Messages de validation (array)
+            errorMessage = message.join(', ');
+          }
         }
+        // Format 2: Champ 'error' pour erreurs de validation
+        else if (data.containsKey('error')) {
+          final errorField = data['error'];
+          if (errorField is String) {
+            errorMessage = errorField;
+          } else if (errorField is Map && errorField.containsKey('message')) {
+            errorMessage = errorField['message'];
+          }
+        }
+        // Format 3: Array d'erreurs de validation
+        else if (data.containsKey('errors')) {
+          final errors = data['errors'] as List;
+          if (errors.isNotEmpty) {
+            errorMessage = errors
+                .map((e) => e is Map ? e['message'] ?? e.toString() : e.toString())
+                .join(', ');
+          }
+        }
+        // Format 4: Erreur simple avec 'statusCode' et 'message'
+        else if (data.containsKey('statusCode') && data.containsKey('error')) {
+          errorMessage = '${data['error']}: ${data['message'] ?? ''}';
+        }
+        // Fallback sur status code
+        else {
+          errorMessage = _getDefaultErrorMessage(error.response!.statusCode);
+        }
+      } else {
+        errorMessage = _getDefaultErrorMessage(error.response!.statusCode);
       }
     } else if (error.type == DioExceptionType.connectionTimeout ||
         error.type == DioExceptionType.receiveTimeout) {
       errorMessage = 'Délai d\'attente dépassé. Vérifiez votre connexion';
     } else if (error.type == DioExceptionType.connectionError) {
       errorMessage = 'Pas de connexion Internet';
+    } else if (error.type == DioExceptionType.sendTimeout) {
+      errorMessage = 'Temps d\'envoi dépassé';
+    } else if (error.type == DioExceptionType.cancel) {
+      errorMessage = 'Requête annulée';
     }
 
     return errorMessage;
+  }
+
+  // Messages d'erreur par défaut selon le code HTTP
+  String _getDefaultErrorMessage(int? statusCode) {
+    switch (statusCode) {
+      case 400:
+        return 'Requête invalide. Vérifiez les données envoyées';
+      case 401:
+        return 'Non autorisé. Veuillez vous reconnecter';
+      case 403:
+        return 'Accès interdit. Vous n\'avez pas les permissions nécessaires';
+      case 404:
+        return 'Ressource non trouvée';
+      case 409:
+        return 'Conflit. Cette ressource existe déjà';
+      case 422:
+        return 'Données invalides. Vérifiez les informations saisies';
+      case 429:
+        return 'Trop de requêtes. Veuillez réessayer plus tard';
+      case 500:
+        return 'Erreur serveur. Réessayez plus tard';
+      case 502:
+        return 'Serveur indisponible. Réessayez plus tard';
+      case 503:
+        return 'Service temporairement indisponible';
+      default:
+        return 'Erreur ${statusCode ?? "inconnue"}';
+    }
   }
 }
