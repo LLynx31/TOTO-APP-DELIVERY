@@ -29,7 +29,7 @@ class EnvConfig {
       try {
         if (Platform.isAndroid) {
           // Android emulator utilise 10.0.2.2 pour accéder au localhost de l'hôte
-          return 'http://10.0.2.2:3000';
+          return 'https://toto.tangagroup.com';
         } else if (Platform.isIOS) {
           // iOS simulator peut utiliser localhost
           return 'http://localhost:3000';
