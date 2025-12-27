@@ -2,14 +2,27 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'core/config/env_config.dart';
 import 'core/constants/app_strings.dart';
 import 'core/theme/app_theme.dart';
 import 'features/auth/screens/login_screen.dart';
 import 'features/auth/providers/auth_provider.dart';
 import 'features/home/main_screen.dart';
 
-void main() async {
+/// Point d'entrée pour le mode DÉVELOPPEMENT (localhost)
+void main() => _runApp(Environment.production);
+
+/// Point d'entrée pour le mode STAGING (staging.toto.tangagroup.com)
+void mainStaging() => _runApp(Environment.staging);
+
+/// Point d'entrée pour le mode PRODUCTION (toto.tangagroup.com)
+void mainProduction() => _runApp(Environment.production);
+
+void _runApp(Environment env) async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Configuration de l'environnement
+  EnvConfig.setEnvironment(env);
 
   // Configuration de l'orientation (portrait uniquement)
   SystemChrome.setPreferredOrientations([

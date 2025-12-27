@@ -48,7 +48,7 @@ class EnvConfig {
       case Environment.development:
         return _developmentUrl;
       case Environment.staging:
-        return 'https://toto.tangagroup.com';
+        return 'https://staging.toto.tangagroup.com';
       case Environment.production:
         return 'https://toto.tangagroup.com';
     }
@@ -59,7 +59,7 @@ class EnvConfig {
       case Environment.development:
         return _developmentUrl;
       case Environment.staging:
-        return 'https://toto.tangagroup.com';
+        return 'https://staging.toto.tangagroup.com';
       case Environment.production:
         return 'https://toto.tangagroup.com';
     }

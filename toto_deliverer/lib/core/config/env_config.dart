@@ -29,7 +29,7 @@ class EnvConfig {
       try {
         if (Platform.isAndroid) {
           // Android emulator utilise 10.0.2.2 pour accéder au localhost de l'hôte
-          return 'https://toto.tangagroup.com';
+          return 'http://10.0.2.2:3000';
         } else if (Platform.isIOS) {
           // iOS simulator peut utiliser localhost
           return 'http://localhost:3000';
@@ -48,7 +48,7 @@ class EnvConfig {
       case Environment.development:
         return _developmentUrl;
       case Environment.staging:
-        return 'https://toto.tangagroup.com';
+        return 'https://staging.toto.tangagroup.com';
       case Environment.production:
         return 'https://toto.tangagroup.com';
     }
@@ -59,7 +59,7 @@ class EnvConfig {
       case Environment.development:
         return _developmentUrl;
       case Environment.staging:
-        return 'https://toto.tangagroup.com';
+        return 'https://staging.toto.tangagroup.com';
       case Environment.production:
         return 'https://toto.tangagroup.com';
     }

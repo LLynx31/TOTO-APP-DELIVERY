@@ -146,14 +146,20 @@ pnpm run start:prod
 ```
 
 ### Créer des utilisateurs de test
+
+#### Méthode 1 : Script SQL (Recommandé pour la production)
+```bash
+# Exécuter le script de données de test
+psql -h HOST -U USER -d DATABASE -f scripts/seed-test-data.sql
+
+# Exemple en local
+PGPASSWORD=toto_password psql -h localhost -U toto_user -d toto_db -f scripts/seed-test-data.sql
+```
+
+#### Méthode 2 : Commande pnpm
 ```bash
 pnpm run create-test-users
 ```
-
-Cela créera automatiquement :
-- 2 clients de test (client@test.com, aya@test.com)
-- 1 livreur de test (deliverer@test.com)
-- Tous avec le mot de passe : `Password123!`
 
 ### Accès aux services
 
@@ -351,3 +357,175 @@ Le projet utilise maintenant **pnpm** comme gestionnaire de paquets pour :
 **Version**: 1.1.0
 **Dernière mise à jour**: Décembre 2025
 **Statut**: ✅ Production-ready avec système de rating complet
+
+---
+
+## 👤 Utilisateurs de Test
+
+### Mot de passe commun : `Test1234!`
+
+### Comptes Livreurs
+
+| Nom | Téléphone | Statut KYC | Véhicule | Quotas | Note |
+|-----|-----------|------------|----------|--------|------|
+| **Moussa Traoré** | +22670100001 | Approuvé | Moto BF-1234-AA | 10 restants | 4.5 ⭐ |
+| **Aminata Ouédraogo** | +22670100002 | Approuvé | Moto BF-5678-BB | 25 restants | 4.8 ⭐ |
+| **Ibrahim Sawadogo** | +22670100003 | En attente | Vélo | 0 | N/A |
+| **Fatou Compaoré** | +22670100004 | Approuvé | Moto BF-9012-CC | 5 restants | 5.0 ⭐ |
+
+### Cas d'Usage par Compte
+
+| Compte | Cas d'usage | Tables concernées |
+|--------|-------------|-------------------|
+| **Moussa** (+22670100001) | Workflow complet, livreur régulier (25 livraisons) | `deliverers`, `delivery_quotas`, `quota_transactions` |
+| **Aminata** (+22670100002) | Top livreur, stats avancées (42 livraisons) | `deliverers`, `delivery_quotas`, `quota_transactions` |
+| **Ibrahim** (+22670100003) | Nouveau livreur, KYC en attente (restrictions) | `deliverers` uniquement |
+| **Fatou** (+22670100004) | Nouvelle livreure, première livraison | `deliverers`, `delivery_quotas`, `quota_transactions` |
+
+### Packages de Quotas Disponibles
+
+| ID | Nom | Livraisons | Prix (FCFA) |
+|----|-----|------------|-------------|
+| pkg-starter | Pack Starter | 5 | 2 500 |
+| pkg-standard | Pack Standard | 15 | 6 000 |
+| pkg-pro | Pack Pro | 30 | 10 000 |
+| pkg-premium | Pack Premium | 50 | 15 000 |
+
+### Livraisons de Test
+
+Le script crée 5 livraisons en attente (statut `pending`) à Ouagadougou :
+- Course standard Ouaga centre (1 500 FCFA)
+- Course express Université → Zone du Bois (2 500 FCFA)
+- Course longue distance Aéroport → Ouaga 2000 (3 500 FCFA)
+- Course quartier Marché → Dassasgho (2 000 FCFA)
+- Course express vers Zone Industrielle (4 500 FCFA)
+
+---
+
+## 🌐 Configuration des Apps Flutter
+
+### URLs API
+
+| Environnement | URL |
+|---------------|-----|
+| Development | `http://localhost:3000` |
+| Staging | `https://staging.toto.tangagroup.com` |
+| **Production** | `https://toto.tangagroup.com` |
+
+### Changer d'environnement
+
+Dans `lib/main.dart` des apps Flutter :
+
+```dart
+// Développement (défaut)
+void main() => _runApp(Environment.development);
+
+// Production
+void main() => _runApp(Environment.production);
+```
+
+---
+
+## 📊 Structure des Tables
+
+### deliverers
+
+```sql
+CREATE TABLE deliverers (
+  id UUID PRIMARY KEY,
+  phone_number VARCHAR UNIQUE NOT NULL,
+  full_name VARCHAR NOT NULL,
+  vehicle_type VARCHAR,           -- 'Moto', 'Vélo', 'Voiture'
+  license_plate VARCHAR,
+  kyc_status VARCHAR DEFAULT 'pending',  -- 'pending', 'approved', 'rejected'
+  is_available BOOLEAN DEFAULT false,
+  rating DECIMAL(3,2) DEFAULT 0,
+  total_deliveries INTEGER DEFAULT 0,
+  password_hash VARCHAR NOT NULL,
+  created_at TIMESTAMP,
+  updated_at TIMESTAMP
+);
+```
+
+### delivery_quotas
+
+```sql
+CREATE TABLE delivery_quotas (
+  id VARCHAR PRIMARY KEY,
+  deliverer_id UUID REFERENCES deliverers(id),
+  quota_type VARCHAR,             -- 'starter', 'standard', 'pro', 'premium'
+  total_deliveries INTEGER,
+  remaining_deliveries INTEGER,
+  price_paid DECIMAL,
+  is_active BOOLEAN DEFAULT true,
+  purchased_at TIMESTAMP,
+  expires_at TIMESTAMP
+);
+```
+
+### quota_transactions
+
+```sql
+CREATE TABLE quota_transactions (
+  id VARCHAR PRIMARY KEY,
+  quota_id VARCHAR REFERENCES delivery_quotas(id),
+  transaction_type VARCHAR,       -- 'purchase', 'consumption', 'refund'
+  amount INTEGER,
+  balance_before INTEGER,
+  balance_after INTEGER,
+  description VARCHAR,
+  created_at TIMESTAMP
+);
+```
+
+### deliveries
+
+```sql
+CREATE TABLE deliveries (
+  id VARCHAR PRIMARY KEY,
+  client_id UUID,
+  deliverer_id UUID REFERENCES deliverers(id),
+  status VARCHAR DEFAULT 'pending',
+  -- Statuts: pending, accepted, pickupInProgress, pickedUp,
+  --          deliveryInProgress, delivered, cancelled
+
+  pickup_address VARCHAR,
+  pickup_latitude DECIMAL,
+  pickup_longitude DECIMAL,
+  pickup_phone VARCHAR,
+
+  delivery_address VARCHAR,
+  delivery_latitude DECIMAL,
+  delivery_longitude DECIMAL,
+  delivery_phone VARCHAR,
+  receiver_name VARCHAR,
+
+  package_type VARCHAR,
+  package_description VARCHAR,
+  delivery_mode VARCHAR,          -- 'standard', 'express'
+  price DECIMAL,
+  distance_km DECIMAL,
+
+  qr_code_pickup VARCHAR,
+  qr_code_delivery VARCHAR,
+  delivery_code VARCHAR(4),
+
+  created_at TIMESTAMP,
+  updated_at TIMESTAMP
+);
+```
+
+---
+
+## 🔄 Workflow de Livraison
+
+```
+PENDING → ACCEPTED → PICKUP_IN_PROGRESS → PICKED_UP → DELIVERY_IN_PROGRESS → DELIVERED
+                                                                           ↘ CANCELLED
+```
+
+### Contraintes métier
+
+- Un livreur ne peut avoir qu'**une seule course active** à la fois
+- Un livreur doit avoir au moins **1 quota** pour accepter une course
+- Le scan QR est requis pour confirmer pickup et delivery
