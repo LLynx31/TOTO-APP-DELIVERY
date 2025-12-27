@@ -205,21 +205,26 @@ class DelivererModel {
   static List<DocumentInfo> _parseDocuments(Map<String, dynamic> json) {
     final List<DocumentInfo> docs = [];
 
-    // Parse les URLs de documents KYC du backend
-    if (json['driver_license_url'] != null) {
+    // Parse les URLs de documents KYC du backend (support camelCase et snake_case)
+    final driverLicenseUrl = json['driverLicenseUrl'] ?? json['driver_license_url'];
+    final idCardFrontUrl = json['idCardFrontUrl'] ?? json['id_card_front_url'];
+    final kycStatus = json['kycStatus'] ?? json['kyc_status'];
+    final kycSubmittedAt = json['kycSubmittedAt'] ?? json['kyc_submitted_at'];
+
+    if (driverLicenseUrl != null) {
       docs.add(DocumentInfo(
         type: 'drivingLicense',
-        url: json['driver_license_url'],
-        isVerified: json['kyc_status'] == 'approved',
-        uploadedAt: _parseDate(json['kyc_submitted_at']),
+        url: driverLicenseUrl,
+        isVerified: kycStatus == 'approved',
+        uploadedAt: _parseDate(kycSubmittedAt),
       ));
     }
-    if (json['id_card_front_url'] != null) {
+    if (idCardFrontUrl != null) {
       docs.add(DocumentInfo(
         type: 'idCard',
-        url: json['id_card_front_url'],
-        isVerified: json['kyc_status'] == 'approved',
-        uploadedAt: _parseDate(json['kyc_submitted_at']),
+        url: idCardFrontUrl,
+        isVerified: kycStatus == 'approved',
+        uploadedAt: _parseDate(kycSubmittedAt),
       ));
     }
 
@@ -277,10 +282,30 @@ class VehicleInfo {
   /// Parse depuis les données du backend (snake_case, champs au niveau racine)
   factory VehicleInfo.fromBackendJson(Map<String, dynamic> json) {
     // Backend stocke vehicle_type et license_plate au niveau racine du deliverer
+    // ApiClient transforme snake_case → camelCase, donc vérifier les deux
+    final vehicleType = json['vehicleType']?.toString() ??
+                       json['vehicle_type']?.toString() ??
+                       json['type']?.toString() ??
+                       'Non spécifié';
+
+    final licensePlate = json['licensePlate']?.toString() ??
+                        json['license_plate']?.toString() ??
+                        json['plate']?.toString() ??
+                        'Non spécifié';
+
+    final photoUrl = json['vehiclePhotoUrl']?.toString() ??
+                    json['vehicle_photo_url']?.toString() ??
+                    json['photoUrl']?.toString();
+
+    print('🚗 VehicleInfo.fromBackendJson:');
+    print('   vehicleType: "$vehicleType"');
+    print('   licensePlate: "$licensePlate"');
+    print('   photoUrl: "$photoUrl"');
+
     return VehicleInfo(
-      type: json['vehicle_type'] ?? json['type'] ?? 'Non spécifié',
-      plate: json['license_plate'] ?? json['plate'] ?? 'Non spécifié',
-      photoUrl: json['vehicle_photo_url'] ?? json['photoUrl'],
+      type: vehicleType,
+      plate: licensePlate,
+      photoUrl: photoUrl,
     );
   }
 }

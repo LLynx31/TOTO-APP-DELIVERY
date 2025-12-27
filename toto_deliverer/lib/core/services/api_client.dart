@@ -10,6 +10,9 @@ class ApiClient {
   String? _accessToken;
   String? _refreshToken;
 
+  // Callback appelé quand la session expire (401 non récupérable)
+  static void Function()? onSessionExpired;
+
   // Singleton pattern
   static final ApiClient _instance = ApiClient._internal();
   factory ApiClient() => _instance;
@@ -74,9 +77,20 @@ class ApiClient {
                   final response = await _dio.fetch(opts);
                   return handler.resolve(response);
                 } catch (e) {
+                  // Refresh a échoué, session expirée
+                  await clearTokens();
+                  onSessionExpired?.call();
                   return handler.next(error);
                 }
+              } else {
+                // Refresh a échoué, session expirée
+                await clearTokens();
+                onSessionExpired?.call();
               }
+            } else {
+              // Pas de refresh token, session expirée
+              await clearTokens();
+              onSessionExpired?.call();
             }
           }
           return handler.next(error);
@@ -199,6 +213,30 @@ class ApiClient {
         path,
         data: data,
         queryParameters: queryParameters,
+      );
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  // POST Multipart (pour upload de fichiers)
+  Future<Response> postMultipart(
+    String path, {
+    required FormData formData,
+    Map<String, dynamic>? queryParameters,
+    void Function(int, int)? onSendProgress,
+  }) async {
+    try {
+      return await _dio.post(
+        path,
+        data: formData,
+        queryParameters: queryParameters,
+        onSendProgress: onSendProgress,
+        options: Options(
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+        ),
       );
     } on DioException catch (e) {
       throw _handleError(e);

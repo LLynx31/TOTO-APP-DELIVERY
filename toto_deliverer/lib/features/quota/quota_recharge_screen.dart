@@ -74,17 +74,22 @@ class _QuotaRechargeScreenState extends ConsumerState<QuotaRechargeScreen> {
       print('✅ Payment success! New quota: $newRemainingDeliveries deliveries');
 
       // Naviguer vers l'écran de reçu
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (context) => PaymentReceiptScreen(
-            pack: _selectedPack!,
-            paymentMethod: _selectedPaymentMethod,
-            previousQuota: widget.currentQuota,
-            newQuota: newRemainingDeliveries,
-            transactionId: 'TXN${DateTime.now().millisecondsSinceEpoch}',
+      if (mounted) {
+        await Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => PaymentReceiptScreen(
+              pack: _selectedPack!,
+              paymentMethod: _selectedPaymentMethod,
+              previousQuota: widget.currentQuota,
+              newQuota: newRemainingDeliveries,
+              transactionId: 'TXN${DateTime.now().millisecondsSinceEpoch}',
+            ),
           ),
-        ),
-      );
+        );
+      }
+
+      // Note: Le reçu redirige directement vers le dashboard avec popUntil
+      // L'historique sera rafraîchi automatiquement via le provider
     } else {
       // Échec: afficher un message d'erreur détaillé
       String errorMessage = 'Le paiement a échoué. Veuillez réessayer.';
@@ -156,12 +161,19 @@ class _QuotaRechargeScreenState extends ConsumerState<QuotaRechargeScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.history),
-            onPressed: () {
-              Navigator.of(context).push(
+            onPressed: () async {
+              // Naviguer vers l'historique et recharger le quota au retour si nécessaire
+              final result = await Navigator.of(context).push(
                 MaterialPageRoute(
                   builder: (context) => const QuotaHistoryScreen(),
                 ),
               );
+
+              // Si un achat a été effectué depuis l'historique, recharger le quota
+              if (result == true && mounted) {
+                print('🔄 Rechargement du quota actif...');
+                await ref.read(quotaProvider.notifier).loadActiveQuota();
+              }
             },
             tooltip: 'Historique des achats',
           ),

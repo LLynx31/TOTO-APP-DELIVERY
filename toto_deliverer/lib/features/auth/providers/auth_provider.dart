@@ -1,5 +1,7 @@
+import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/services/auth_service.dart';
+import '../../../core/services/api_client.dart';
 
 class AuthState {
   final bool isAuthenticated;
@@ -32,7 +34,16 @@ class AuthState {
 class AuthNotifier extends StateNotifier<AuthState> {
   final AuthService _authService = AuthService();
 
-  AuthNotifier() : super(AuthState());
+  AuthNotifier() : super(AuthState()) {
+    // Configurer le callback pour la session expirée
+    ApiClient.onSessionExpired = _handleSessionExpired;
+  }
+
+  // Appelé automatiquement quand la session expire (401 non récupérable)
+  void _handleSessionExpired() {
+    // Forcer la déconnexion et rediriger vers login
+    state = AuthState(isAuthenticated: false, isLoading: false);
+  }
 
   // Initialiser
   Future<void> init() async {
@@ -51,7 +62,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
   }
 
-  // Inscription
+  // Inscription avec documents KYC
   Future<void> register({
     required String phoneNumber,
     required String password,
@@ -59,6 +70,9 @@ class AuthNotifier extends StateNotifier<AuthState> {
     String? email,
     required String vehicleType,
     required String vehicleRegistration,
+    File? drivingLicense,
+    File? idCard,
+    File? vehiclePhoto,
   }) async {
     state = state.copyWith(isLoading: true, error: null);
     try {
@@ -69,6 +83,9 @@ class AuthNotifier extends StateNotifier<AuthState> {
         email: email,
         vehicleType: vehicleType,
         vehicleRegistration: vehicleRegistration,
+        drivingLicense: drivingLicense,
+        idCard: idCard,
+        vehiclePhoto: vehiclePhoto,
       );
 
       state = state.copyWith(

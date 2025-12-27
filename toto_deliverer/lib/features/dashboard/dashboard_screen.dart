@@ -39,7 +39,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   int _completedToday = 0;
   double _earningsToday = 0; // Gains du jour en FCFA
   double _rating = 0.0;
-  Duration _timeOnline = Duration.zero;
+  int _inProgress = 0; // Livraisons en cours
 
   // Filtres
   DeliveryMode? _selectedMode;
@@ -48,15 +48,33 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   // Livraisons disponibles - Chargées depuis l'API
   List<DeliveryModel> _availableCourses = [];
 
+  // Livraisons actives du livreur (en cours)
+  List<DeliveryModel> _activeDeliveries = [];
+
   @override
   void initState() {
     super.initState();
     // Différer les appels aux providers après la construction du widget tree
     Future(() {
       _loadAvailableDeliveries();
+      _loadActiveDeliveries();
       _loadDelivererProfile();
       _loadQuotaData();
     });
+  }
+
+  /// Charge les livraisons actives du livreur (en cours)
+  Future<void> _loadActiveDeliveries() async {
+    try {
+      final activeDeliveries = await _hybridDeliveryService.getActiveDeliveries();
+      if (!mounted) return;
+      setState(() {
+        _activeDeliveries = activeDeliveries;
+      });
+      print('📦 DashboardScreen: ${activeDeliveries.length} livraisons actives');
+    } catch (e) {
+      print('⚠️ DashboardScreen: Erreur chargement livraisons actives: $e');
+    }
   }
 
   /// Charge les données de quota depuis le backend
@@ -100,6 +118,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         setState(() {
           _completedToday = delivererState.dailyStats!.completedToday;
           _earningsToday = delivererState.dailyStats!.earningsToday;
+          _inProgress = delivererState.dailyStats!.inProgress;
         });
       }
     } catch (e) {
@@ -211,6 +230,16 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   }
 
   void _viewCourseDetails(DeliveryModel delivery) async {
+    // Block if user is offline
+    if (!_isOnline) {
+      ToastUtils.showWarning(
+        context,
+        'Vous devez être en ligne pour accepter une course.',
+        title: 'Hors ligne',
+      );
+      return;
+    }
+
     // Block acceptance of new courses if there's already an ongoing delivery
     if (_ongoingCourses.isNotEmpty) {
       ToastUtils.showWarning(
@@ -240,14 +269,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   }
 
   // Courses en cours (accepted, pickupInProgress, pickedUp, deliveryInProgress)
-  List<DeliveryModel> get _ongoingCourses {
-    return _availableCourses.where((course) {
-      return course.status == DeliveryStatus.accepted ||
-             course.status == DeliveryStatus.pickupInProgress ||
-             course.status == DeliveryStatus.pickedUp ||
-             course.status == DeliveryStatus.deliveryInProgress;
-    }).toList();
-  }
+  // Utilise _activeDeliveries qui sont chargées séparément
+  List<DeliveryModel> get _ongoingCourses => _activeDeliveries;
+
+  // Vérifie si le livreur a une course en cours
+  bool get _hasOngoingCourse => _activeDeliveries.isNotEmpty;
 
   // Filtrage et tri des courses disponibles (pending uniquement)
   List<DeliveryModel> get _filteredAndSortedCourses {
@@ -563,7 +589,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               QuickStatsCard(
                 earningsToday: _earningsToday,
                 deliveriesToday: _completedToday,
-                timeOnline: _timeOnline,
+                remainingQuota: _remainingDeliveries,
               ),
 
               const SizedBox(height: AppSizes.spacingMd),
@@ -576,7 +602,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               DailyStatsCard(
                 completedToday: _completedToday,
                 rating: _rating,
-                timeOnline: _timeOnline,
+                inProgress: _inProgress,
               ),
 
               const SizedBox(height: AppSizes.spacingMd),
@@ -640,42 +666,48 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                           ),
                     ),
                   ),
-                  if (_filteredAndSortedCourses.isNotEmpty)
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: AppSizes.paddingSm,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: _ongoingCourses.isNotEmpty
-                            ? AppColors.warning
-                            : AppColors.primary,
-                        borderRadius: BorderRadius.circular(AppSizes.radiusSm),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (_ongoingCourses.isNotEmpty)
-                            const Padding(
-                              padding: EdgeInsets.only(right: 4),
-                              child: Icon(
-                                Icons.block,
-                                size: 14,
-                                color: AppColors.textWhite,
-                              ),
-                            ),
-                          Text(
-                            _ongoingCourses.isNotEmpty
-                                ? '${_filteredAndSortedCourses.length} bloquées'
-                                : '${_filteredAndSortedCourses.length} disponibles',
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  if (_filteredAndSortedCourses.isNotEmpty) ...[
+                    // Indicateur de blocage (hors ligne ou course en cours)
+                    Builder(builder: (context) {
+                      final isBlocked = !_isOnline || _ongoingCourses.isNotEmpty;
+
+                      return Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppSizes.paddingSm,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: isBlocked
+                              ? (!_isOnline ? AppColors.error : AppColors.warning)
+                              : AppColors.primary,
+                          borderRadius: BorderRadius.circular(AppSizes.radiusSm),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (isBlocked)
+                              Padding(
+                                padding: const EdgeInsets.only(right: 4),
+                                child: Icon(
+                                  !_isOnline ? Icons.wifi_off : Icons.block,
+                                  size: 14,
                                   color: AppColors.textWhite,
-                                  fontWeight: FontWeight.bold,
                                 ),
-                          ),
-                        ],
-                      ),
-                    ),
+                              ),
+                            Text(
+                              isBlocked
+                                  ? '${_filteredAndSortedCourses.length} bloquées'
+                                  : '${_filteredAndSortedCourses.length} disponibles',
+                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: AppColors.textWhite,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }),
+                  ],
                 ],
               ),
 
@@ -715,7 +747,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                       const SizedBox(height: AppSizes.spacingMd),
                   itemBuilder: (context, index) {
                     final delivery = _filteredAndSortedCourses[index];
-                    final isBlocked = _ongoingCourses.isNotEmpty;
+                    // Bloquer si hors ligne OU si une course est en cours
+                    final isBlocked = !_isOnline || _ongoingCourses.isNotEmpty;
 
                     return Stack(
                       children: [
@@ -725,7 +758,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                           onTap: () => _viewCourseDetails(delivery),
                         ),
                         if (isBlocked)
-                          const BlockedCourseOverlay(),
+                          BlockedCourseOverlay(
+                            reason: !_isOnline
+                                ? 'Passez en ligne pour accepter'
+                                : 'Course en cours',
+                          ),
                       ],
                     );
                   },

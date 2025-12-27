@@ -5,23 +5,14 @@ import '../../../core/constants/app_sizes.dart';
 class DailyStatsCard extends StatelessWidget {
   final int completedToday;
   final double rating;
-  final Duration timeOnline;
+  final int inProgress;
 
   const DailyStatsCard({
     super.key,
     required this.completedToday,
     required this.rating,
-    required this.timeOnline,
+    required this.inProgress,
   });
-
-  String get _formattedTime {
-    final hours = timeOnline.inHours;
-    final minutes = timeOnline.inMinutes % 60;
-    if (hours > 0) {
-      return '${hours}h ${minutes}m';
-    }
-    return '${minutes}m';
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -75,9 +66,9 @@ class DailyStatsCard extends StatelessWidget {
           Expanded(
             child: _buildStatItem(
               context: context,
-              icon: Icons.access_time,
-              value: _formattedTime,
-              label: 'Temps\nen ligne',
+              icon: Icons.local_shipping_outlined,
+              value: '$inProgress',
+              label: 'En\ncours',
               color: AppColors.info,
             ),
           ),

@@ -36,38 +36,39 @@ class DeliveryAdapter {
   /// }
   /// ```
   static DeliveryModel fromBackend(Map<String, dynamic> json) {
-    // Extraire les données avec null-safety
+    // Note: Les données arrivent en camelCase car ApiClient les transforme automatiquement
+    // Extraire les données avec null-safety (supporte snake_case ET camelCase)
     final id = json['id'] as String;
-    final clientId = json['client_id'] as String;
-    final delivererId = json['deliverer_id'] as String?;
+    final clientId = (json['clientId'] ?? json['client_id']) as String;
+    final delivererId = (json['delivererId'] ?? json['deliverer_id']) as String?;
 
     // Construire pickupAddress depuis les champs séparés
     final pickupAddress = _buildAddressFromFields(
-      address: json['pickup_address'] as String,
-      latitude: BaseAdapter.toDouble(json['pickup_latitude'])!,
-      longitude: BaseAdapter.toDouble(json['pickup_longitude'])!,
-      phone: json['pickup_phone'] as String?, // Optionnel
+      address: (json['pickupAddress'] ?? json['pickup_address']) as String,
+      latitude: BaseAdapter.toDouble(json['pickupLatitude'] ?? json['pickup_latitude'])!,
+      longitude: BaseAdapter.toDouble(json['pickupLongitude'] ?? json['pickup_longitude'])!,
+      phone: (json['pickupPhone'] ?? json['pickup_phone']) as String?, // Optionnel
     );
 
     // Construire deliveryAddress depuis les champs séparés
     final deliveryAddress = _buildAddressFromFields(
-      address: json['delivery_address'] as String,
-      latitude: BaseAdapter.toDouble(json['delivery_latitude'])!,
-      longitude: BaseAdapter.toDouble(json['delivery_longitude'])!,
-      phone: json['delivery_phone'] as String?, // Optionnel
-      receiverName: json['receiver_name'] as String?, // Optionnel
+      address: (json['deliveryAddress'] ?? json['delivery_address']) as String,
+      latitude: BaseAdapter.toDouble(json['deliveryLatitude'] ?? json['delivery_latitude'])!,
+      longitude: BaseAdapter.toDouble(json['deliveryLongitude'] ?? json['delivery_longitude'])!,
+      phone: (json['deliveryPhone'] ?? json['delivery_phone']) as String?, // Optionnel
+      receiverName: (json['receiverName'] ?? json['receiver_name']) as String?, // Optionnel
     );
 
     // Construire package avec inférence de la taille
     final package = _buildPackageFromFields(
-      description: json['package_description'] as String?,
-      weight: BaseAdapter.toDouble(json['package_weight']) ?? 2.0,
-      photoUrl: json['package_photo_url'] as String?, // Si backend le supporte
+      description: (json['packageDescription'] ?? json['package_description']) as String?,
+      weight: BaseAdapter.toDouble(json['packageWeight'] ?? json['package_weight']) ?? 2.0,
+      photoUrl: (json['packagePhotoUrl'] ?? json['package_photo_url']) as String?, // Si backend le supporte
     );
 
     // Déterminer le mode (Standard vs Express)
     final mode = _inferMode(
-      distanceKm: BaseAdapter.toDouble(json['distance_km']),
+      distanceKm: BaseAdapter.toDouble(json['distanceKm'] ?? json['distance_km']),
       // Le backend pourrait avoir un champ 'mode' dans le futur
       explicitMode: json['mode'] as String?,
     );
@@ -79,17 +80,17 @@ class DeliveryAdapter {
     final price = BaseAdapter.toDouble(json['price'])!;
 
     // Assurance (si backend le supporte)
-    final hasInsurance = BaseAdapter.toBool(json['has_insurance']) ?? false;
-    final insuranceAmount = BaseAdapter.toDouble(json['insurance_amount']);
+    final hasInsurance = BaseAdapter.toBool(json['hasInsurance'] ?? json['has_insurance']) ?? false;
+    final insuranceAmount = BaseAdapter.toDouble(json['insuranceAmount'] ?? json['insurance_amount']);
 
     // Dates
-    final createdAt = BaseAdapter.parseDate(json['created_at'])!;
-    final acceptedAt = BaseAdapter.parseDate(json['accepted_at']);
-    final pickedUpAt = BaseAdapter.parseDate(json['picked_up_at']);
-    final deliveredAt = BaseAdapter.parseDate(json['delivered_at']);
+    final createdAt = BaseAdapter.parseDate(json['createdAt'] ?? json['created_at'])!;
+    final acceptedAt = BaseAdapter.parseDate(json['acceptedAt'] ?? json['accepted_at']);
+    final pickedUpAt = BaseAdapter.parseDate(json['pickedUpAt'] ?? json['picked_up_at']);
+    final deliveredAt = BaseAdapter.parseDate(json['deliveredAt'] ?? json['delivered_at']);
 
     // QR code de livraison (pas celui de pickup)
-    final qrCode = json['qr_code_delivery'] as String?;
+    final qrCode = (json['qrCodeDelivery'] ?? json['qr_code_delivery']) as String?;
 
     // Rating si livraison terminée
     final rating = BaseAdapter.toInt(json['rating']);

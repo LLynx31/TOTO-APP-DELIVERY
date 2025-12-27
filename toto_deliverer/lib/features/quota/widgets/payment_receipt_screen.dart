@@ -236,9 +236,9 @@ class PaymentReceiptScreen extends StatelessWidget {
             CustomButton(
               text: 'Retour au tableau de bord',
               onPressed: () {
-                // Pop twice: close receipt and quota recharge screens
-                Navigator.of(context).pop();
-                Navigator.of(context).pop();
+                // Retourner au dashboard en fermant toutes les pages de recharge
+                // Pop jusqu'au dashboard (ou root)
+                Navigator.of(context).popUntil((route) => route.isFirst);
               },
             ),
 

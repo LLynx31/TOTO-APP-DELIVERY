@@ -27,9 +27,9 @@ class ApiConfig {
 
   // Deliveries
   static const String deliveries = '/deliveries';
-  // Note: Les endpoints available/active/completed utilisent /deliveries avec query params
-  // Ex: /deliveries?status=pending pour available
-  static const String deliveriesAvailable = '/deliveries'; // + ?status=pending
+  // Endpoint dédié pour les livraisons disponibles (toutes les pending sans livreur assigné)
+  static const String deliveriesAvailable = '/deliveries/available';
+  // Livraisons du livreur connecté (filtrées par status si besoin)
   static const String deliveriesActive = '/deliveries'; // Filtrage côté client
   static const String deliveriesCompleted = '/deliveries'; // + ?status=delivered
 

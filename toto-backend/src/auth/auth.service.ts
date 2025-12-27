@@ -81,15 +81,27 @@ export class AuthService {
   // ==========================================
   // DELIVERER REGISTRATION
   // ==========================================
-  async registerDeliverer(registerDto: RegisterDelivererDto) {
+  async registerDeliverer(
+    registerDto: RegisterDelivererDto,
+    kycFiles?: {
+      driver_license_url?: string;
+      id_card_front_url?: string;
+      id_card_back_url?: string;
+    },
+  ) {
     const { phone_number, email, password, full_name, vehicle_type, license_plate } = registerDto;
+
+    console.log('📝 AuthService.registerDeliverer - Début');
+    console.log('📞 Phone:', phone_number);
+    console.log('📄 KYC Files:', JSON.stringify(kycFiles));
 
     // Check if phone number already exists
     const existingDeliverer = await this.delivererRepository.findOne({
       where: { phone_number },
     });
     if (existingDeliverer) {
-      throw new ConflictException('Phone number already registered');
+      console.log('❌ Numéro de téléphone déjà utilisé');
+      throw new ConflictException('Numéro de téléphone déjà utilisé');
     }
 
     // Check if email already exists
@@ -98,14 +110,18 @@ export class AuthService {
         where: { email },
       });
       if (existingEmail) {
-        throw new ConflictException('Email already registered');
+        console.log('❌ Email déjà utilisé');
+        throw new ConflictException('Email déjà utilisé');
       }
     }
 
     // Hash password
     const password_hash = await bcrypt.hash(password, 10);
 
-    // Create deliverer
+    // Determine KYC status based on documents
+    const hasKycDocuments = kycFiles && (kycFiles.driver_license_url || kycFiles.id_card_front_url || kycFiles.id_card_back_url);
+
+    // Create deliverer with KYC documents
     const deliverer = this.delivererRepository.create({
       phone_number,
       email,
@@ -113,12 +129,24 @@ export class AuthService {
       password_hash,
       vehicle_type,
       license_plate,
+      driver_license_url: kycFiles?.driver_license_url,
+      id_card_front_url: kycFiles?.id_card_front_url,
+      id_card_back_url: kycFiles?.id_card_back_url,
+      kyc_status: 'pending' as const,
     });
 
+    // Ajouter la date de soumission KYC seulement si des documents sont présents
+    if (hasKycDocuments) {
+      deliverer.kyc_submitted_at = new Date();
+    }
+
+    console.log('💾 Sauvegarde du livreur...');
     await this.delivererRepository.save(deliverer);
+    console.log('✅ Livreur sauvegardé avec ID:', deliverer.id);
 
     // Generate tokens
     const tokens = await this.generateTokens(deliverer.id, 'deliverer');
+    console.log('🔐 Tokens générés');
 
     return {
       deliverer: this.sanitizeDeliverer(deliverer),
@@ -288,7 +316,7 @@ export class AuthService {
       access_token: accessToken,
       refresh_token: refreshTokenString,
       token_type: 'Bearer',
-      expires_in: 3600, // 1 hour in seconds
+      expires_in: null, // Token n'expire jamais
     };
   }
 
@@ -382,7 +410,7 @@ export class AuthService {
       access_token: accessToken,
       refresh_token: refreshTokenString,
       token_type: 'Bearer',
-      expires_in: 3600, // 1 hour in seconds
+      expires_in: null, // Token n'expire jamais
     };
   }
 

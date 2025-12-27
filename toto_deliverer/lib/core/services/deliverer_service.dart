@@ -59,8 +59,10 @@ class DelivererService {
     );
 
     print('✅ Disponibilité mise à jour: ${response.statusCode}');
+    print('📦 Réponse: ${response.data}');
 
-    return response.data['is_available'] as bool;
+    // L'ApiClient transforme snake_case → camelCase, donc vérifier les deux
+    return (response.data['isAvailable'] ?? response.data['is_available']) as bool;
   }
 
   /// Récupérer les statistiques du livreur
@@ -114,13 +116,15 @@ class DelivererStats {
   });
 
   factory DelivererStats.fromJson(Map<String, dynamic> json) {
+    // ApiClient transforme snake_case → camelCase, supporter les deux
+    final ratingValue = json['rating'];
     return DelivererStats(
-      totalDeliveries: json['total_deliveries'] ?? 0,
-      rating: (json['rating'] is String)
-          ? double.tryParse(json['rating']) ?? 0.0
-          : (json['rating'] as num?)?.toDouble() ?? 0.0,
-      isVerified: json['is_verified'] ?? false,
-      kycStatus: json['kyc_status'] ?? 'pending',
+      totalDeliveries: json['totalDeliveries'] ?? json['total_deliveries'] ?? 0,
+      rating: (ratingValue is String)
+          ? double.tryParse(ratingValue) ?? 0.0
+          : (ratingValue as num?)?.toDouble() ?? 0.0,
+      isVerified: json['isVerified'] ?? json['is_verified'] ?? false,
+      kycStatus: json['kycStatus'] ?? json['kyc_status'] ?? 'pending',
     );
   }
 }
@@ -140,14 +144,20 @@ class DailyStats {
   });
 
   factory DailyStats.fromJson(Map<String, dynamic> json) {
+    // ApiClient transforme snake_case → camelCase, supporter les deux
     return DailyStats(
-      deliveriesToday: json['deliveries_today'] ?? 0,
-      earningsToday: (json['earnings_today'] is String)
-          ? double.tryParse(json['earnings_today']) ?? 0.0
-          : (json['earnings_today'] as num?)?.toDouble() ?? 0.0,
-      completedToday: json['completed_today'] ?? 0,
-      inProgress: json['in_progress'] ?? 0,
+      deliveriesToday: json['deliveriesToday'] ?? json['deliveries_today'] ?? 0,
+      earningsToday: _parseDouble(json['earningsToday'] ?? json['earnings_today']),
+      completedToday: json['completedToday'] ?? json['completed_today'] ?? 0,
+      inProgress: json['inProgress'] ?? json['in_progress'] ?? 0,
     );
+  }
+
+  static double _parseDouble(dynamic value) {
+    if (value == null) return 0.0;
+    if (value is String) return double.tryParse(value) ?? 0.0;
+    if (value is num) return value.toDouble();
+    return 0.0;
   }
 }
 

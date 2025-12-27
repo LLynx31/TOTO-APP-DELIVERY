@@ -1,18 +1,18 @@
-import { IsString, IsEmail, IsOptional, MaxLength } from 'class-validator';
-import { ApiPropertyOptional } from '@nestjs/swagger';
+import { IsString, IsOptional, MaxLength, IsBoolean } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
+/**
+ * DTO pour la mise à jour du profil livreur
+ *
+ * Note: Le numéro de téléphone n'est PAS modifiable car il sert d'identifiant unique
+ * L'email a été retiré du système d'inscription livreur
+ */
 export class UpdateDelivererDto {
   @ApiPropertyOptional({ description: 'Nom complet du livreur', example: 'Jean Kouassi' })
   @IsOptional()
   @IsString()
   @MaxLength(100)
   full_name?: string;
-
-  @ApiPropertyOptional({ description: 'Email du livreur', example: 'jean@example.com' })
-  @IsOptional()
-  @IsEmail()
-  @MaxLength(100)
-  email?: string;
 
   @ApiPropertyOptional({ description: 'URL de la photo de profil' })
   @IsOptional()
@@ -34,6 +34,7 @@ export class UpdateDelivererDto {
 }
 
 export class UpdateAvailabilityDto {
-  @ApiPropertyOptional({ description: 'Statut de disponibilité', example: true })
+  @ApiProperty({ description: 'Statut de disponibilité', example: true })
+  @IsBoolean()
   is_available: boolean;
 }

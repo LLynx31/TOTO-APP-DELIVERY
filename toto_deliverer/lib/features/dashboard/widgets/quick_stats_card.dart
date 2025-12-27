@@ -6,20 +6,14 @@ import '../../../core/constants/app_sizes.dart';
 class QuickStatsCard extends StatelessWidget {
   final double earningsToday;
   final int deliveriesToday;
-  final Duration timeOnline;
+  final int remainingQuota;
 
   const QuickStatsCard({
     super.key,
     required this.earningsToday,
     required this.deliveriesToday,
-    required this.timeOnline,
+    required this.remainingQuota,
   });
-
-  String _formatDuration(Duration duration) {
-    final hours = duration.inHours;
-    final minutes = duration.inMinutes.remainder(60);
-    return '${hours}h${minutes.toString().padLeft(2, '0')}';
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -75,13 +69,13 @@ class QuickStatsCard extends StatelessWidget {
             color: AppColors.border,
           ),
 
-          // Temps en ligne
+          // Quota restant
           Expanded(
             child: _buildStatItem(
               context: context,
-              icon: Icons.schedule_outlined,
-              label: 'En ligne',
-              value: _formatDuration(timeOnline),
+              icon: Icons.inventory_2_outlined,
+              label: 'Quota',
+              value: '$remainingQuota',
               color: AppColors.info,
             ),
           ),

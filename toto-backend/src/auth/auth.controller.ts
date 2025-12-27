@@ -1,15 +1,25 @@
-import { Controller, Post, Body, HttpCode, HttpStatus } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
+import { Controller, Post, Body, HttpCode, HttpStatus, UseInterceptors, UploadedFiles, Logger } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiConsumes } from '@nestjs/swagger';
+import { FileFieldsInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import { extname } from 'path';
+import { v4 as uuidv4 } from 'uuid';
 import { AuthService } from './auth.service';
 import { RegisterDto, RegisterDelivererDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { AdminLoginDto } from './dto/admin-login.dto';
+import { ConfigService } from '@nestjs/config';
 
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  private readonly logger = new Logger(AuthController.name);
+
+  constructor(
+    private readonly authService: AuthService,
+    private readonly configService: ConfigService,
+  ) {}
 
   // ==========================================
   // CLIENT ENDPOINTS
@@ -69,9 +79,39 @@ export class AuthController {
 
   @Post('deliverer/register')
   @HttpCode(HttpStatus.CREATED)
+  @UseInterceptors(
+    FileFieldsInterceptor(
+      [
+        { name: 'driving_license', maxCount: 1 },
+        { name: 'id_card', maxCount: 1 },
+        { name: 'vehicle_photo', maxCount: 1 },
+      ],
+      {
+        storage: diskStorage({
+          destination: './uploads',
+          filename: (req, file, cb) => {
+            const uniqueSuffix = uuidv4();
+            const ext = extname(file.originalname);
+            cb(null, `${uniqueSuffix}${ext}`);
+          },
+        }),
+        fileFilter: (req, file, cb) => {
+          if (file.mimetype.match(/\/(jpg|jpeg|png|gif|webp)$/)) {
+            cb(null, true);
+          } else {
+            cb(new Error('Seuls les fichiers images sont acceptés'), false);
+          }
+        },
+        limits: {
+          fileSize: 5242880, // 5MB
+        },
+      },
+    ),
+  )
+  @ApiConsumes('multipart/form-data')
   @ApiOperation({
-    summary: 'Inscription d\'un nouveau livreur',
-    description: 'Permet à un livreur de créer un compte. Le KYC sera en statut "pending" par défaut.'
+    summary: 'Inscription d\'un nouveau livreur avec documents KYC',
+    description: 'Permet à un livreur de créer un compte avec ses documents KYC (permis, CNI, photo véhicule). Le KYC sera en statut "pending" par défaut.'
   })
   @ApiResponse({
     status: 201,
@@ -85,6 +125,9 @@ export class AuthController {
           vehicle_type: 'Moto',
           license_plate: 'AB-1234-CI',
           kyc_status: 'pending',
+          driver_license_url: 'http://localhost:3000/uploads/xxx.jpg',
+          id_card_front_url: 'http://localhost:3000/uploads/yyy.jpg',
+          id_card_back_url: 'http://localhost:3000/uploads/zzz.jpg',
           is_available: false,
           total_deliveries: 0,
           rating: '0.00',
@@ -97,10 +140,35 @@ export class AuthController {
       }
     }
   })
-  @ApiResponse({ status: 400, description: 'Données invalides' })
-  @ApiResponse({ status: 409, description: 'Numéro de téléphone ou email déjà utilisé' })
-  async registerDeliverer(@Body() registerDto: RegisterDelivererDto) {
-    return this.authService.registerDeliverer(registerDto);
+  @ApiResponse({ status: 400, description: 'Données invalides ou documents manquants' })
+  @ApiResponse({ status: 409, description: 'Numéro de téléphone déjà utilisé' })
+  async registerDeliverer(
+    @Body() registerDto: RegisterDelivererDto,
+    @UploadedFiles()
+    files: {
+      driving_license?: Express.Multer.File[];
+      id_card?: Express.Multer.File[];
+      vehicle_photo?: Express.Multer.File[];
+    },
+  ) {
+    this.logger.log('=== INSCRIPTION LIVREUR ===');
+    this.logger.log(`Données reçues: ${JSON.stringify(registerDto)}`);
+    this.logger.log(`Fichiers reçus: driving_license=${files?.driving_license?.length || 0}, id_card=${files?.id_card?.length || 0}, vehicle_photo=${files?.vehicle_photo?.length || 0}`);
+
+    // Construire les URLs des fichiers
+    const baseUrl = this.configService.get('API_BASE_URL') || 'http://localhost:3000';
+    const kycFiles = {
+      driver_license_url: files?.driving_license?.[0] ? `${baseUrl}/uploads/${files.driving_license[0].filename}` : undefined,
+      id_card_front_url: files?.id_card?.[0] ? `${baseUrl}/uploads/${files.id_card[0].filename}` : undefined,
+      id_card_back_url: files?.vehicle_photo?.[0] ? `${baseUrl}/uploads/${files.vehicle_photo[0].filename}` : undefined,
+    };
+
+    this.logger.log(`URLs KYC: ${JSON.stringify(kycFiles)}`);
+
+    const result = await this.authService.registerDeliverer(registerDto, kycFiles);
+
+    this.logger.log(`Inscription réussie pour: ${result.deliverer.phone_number}`);
+    return result;
   }
 
   @Post('deliverer/login')

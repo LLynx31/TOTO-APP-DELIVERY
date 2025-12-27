@@ -3,12 +3,23 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_sizes.dart';
 
 /// Overlay semi-transparent affiché sur les courses bloquées
-/// quand le livreur a déjà une course en cours
+/// quand le livreur a déjà une course en cours ou est hors ligne
 class BlockedCourseOverlay extends StatelessWidget {
-  const BlockedCourseOverlay({super.key});
+  final String? reason;
+
+  const BlockedCourseOverlay({
+    super.key,
+    this.reason,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final isOffline = reason?.contains('ligne') ?? false;
+    final title = reason ?? 'Terminez votre course actuelle';
+    final subtitle = isOffline
+        ? 'Activez votre disponibilité pour voir les détails'
+        : 'Vous pourrez accepter cette course une fois votre livraison terminée';
+
     return Positioned.fill(
       child: Container(
         decoration: BoxDecoration(
@@ -22,12 +33,13 @@ class BlockedCourseOverlay extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(AppSizes.paddingSm),
                 decoration: BoxDecoration(
-                  color: AppColors.warning.withValues(alpha: 0.2),
+                  color: (isOffline ? AppColors.error : AppColors.warning)
+                      .withValues(alpha: 0.2),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(
-                  Icons.block,
-                  color: AppColors.warning,
+                child: Icon(
+                  isOffline ? Icons.wifi_off : Icons.block,
+                  color: isOffline ? AppColors.error : AppColors.warning,
                   size: 32,
                 ),
               ),
@@ -35,7 +47,7 @@ class BlockedCourseOverlay extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: AppSizes.paddingLg),
                 child: Text(
-                  'Terminez votre course actuelle',
+                  title,
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         color: AppColors.textWhite,
                         fontWeight: FontWeight.bold,
@@ -47,7 +59,7 @@ class BlockedCourseOverlay extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: AppSizes.paddingLg),
                 child: Text(
-                  'Vous pourrez accepter cette course une fois votre livraison terminée',
+                  subtitle,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: AppColors.textWhite.withValues(alpha: 0.9),
                       ),

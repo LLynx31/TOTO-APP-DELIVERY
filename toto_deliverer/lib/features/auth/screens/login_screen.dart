@@ -22,6 +22,22 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _passwordController = TextEditingController();
   bool _hideError = false;
 
+  // Pays sélectionné pour le téléphone
+  Country _selectedCountry = availableCountries.first; // Côte d'Ivoire par défaut
+
+  /// Retourne le numéro complet avec l'indicatif pays
+  String _getFullPhoneNumber() {
+    final localNumber = _phoneController.text.trim();
+    if (localNumber.isEmpty) return '';
+
+    // Supprimer le 0 initial si présent
+    final cleanNumber = localNumber.startsWith('0')
+        ? localNumber.substring(1)
+        : localNumber;
+
+    return '${_selectedCountry.dialCode}$cleanNumber';
+  }
+
   @override
   void dispose() {
     _phoneController.dispose();
@@ -39,11 +55,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       _hideError = false;
     });
 
+    // Construire le numéro complet avec indicatif pays
+    final fullPhoneNumber = _getFullPhoneNumber();
     print('🔐 Tentative de connexion...');
+    print('📞 Phone: $fullPhoneNumber');
 
     try {
       await ref.read(authProvider.notifier).login(
-        phoneNumber: _phoneController.text.trim(),
+        phoneNumber: fullPhoneNumber,
         password: _passwordController.text,
       );
 
@@ -191,14 +210,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         ),
                       ),
 
-                    // Phone Field
-                    CustomTextField(
+                    // Phone Field avec sélecteur de pays
+                    CountryPhoneField(
                       label: AppStrings.phone,
-                      hint: '+225 07 00 00 00 00',
+                      hint: '07 00 00 00 00',
                       controller: _phoneController,
-                      keyboardType: TextInputType.phone,
-                      prefixIcon: const Icon(Icons.phone_outlined),
                       enabled: !isLoading,
+                      initialCountry: _selectedCountry,
+                      onCountryChanged: (country) {
+                        setState(() {
+                          _selectedCountry = country;
+                        });
+                      },
                       validator: (value) {
                         if (value == null || value.isEmpty) {
                           return AppStrings.requiredField;

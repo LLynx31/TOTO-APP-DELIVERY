@@ -3,14 +3,14 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class RegisterDto {
   @ApiProperty({
-    example: '+22512345678',
-    description: 'Numéro de téléphone ivoirien au format +225XXXXXXXX',
-    pattern: '^\\+225\\d{8,10}$'
+    example: '+22507123456',
+    description: 'Numéro de téléphone international au format +XXXXXXXXXXX (indicatif pays + numéro)',
+    pattern: '^\\+[1-9]\\d{6,14}$'
   })
   @IsString()
   @IsNotEmpty()
-  @Matches(/^\+225\d{8,10}$/, {
-    message: 'Phone number must be in format +225XXXXXXXX',
+  @Matches(/^\+[1-9]\d{6,14}$/, {
+    message: 'Le numéro de téléphone doit commencer par + suivi de l\'indicatif pays et du numéro (ex: +22507123456)',
   })
   phone_number: string;
 

@@ -7,7 +7,7 @@ import {
   forwardRef,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, In } from 'typeorm';
 import { Delivery, DeliveryStatus } from './entities/delivery.entity';
 import { CreateDeliveryDto } from './dto/create-delivery.dto';
 import { UpdateDeliveryDto } from './dto/update-delivery.dto';
@@ -184,7 +184,26 @@ export class DeliveriesService {
   // ACCEPT DELIVERY (Deliverer)
   // ==========================================
   async acceptDelivery(id: string, delivererId: string) {
-    // 1. Vérifier que le livreur a un quota actif AVANT d'accepter
+    // 1. Vérifier que le livreur n'a pas déjà une course en cours
+    const activeDelivery = await this.deliveryRepository.findOne({
+      where: {
+        deliverer_id: delivererId,
+        status: In([
+          DeliveryStatus.ACCEPTED,
+          DeliveryStatus.PICKUP_IN_PROGRESS,
+          DeliveryStatus.PICKED_UP,
+          DeliveryStatus.DELIVERY_IN_PROGRESS,
+        ]),
+      },
+    });
+
+    if (activeDelivery) {
+      throw new BadRequestException(
+        'Vous avez déjà une course en cours. Terminez-la avant d\'en accepter une nouvelle.',
+      );
+    }
+
+    // 2. Vérifier que le livreur a un quota actif AVANT d'accepter
     const quota = await this.quotasService.getActiveQuota(delivererId);
     if (!quota) {
       throw new ForbiddenException(
@@ -193,7 +212,7 @@ export class DeliveriesService {
       );
     }
 
-    // 2. Récupérer la livraison
+    // 3. Récupérer la livraison
     const delivery = await this.deliveryRepository.findOne({ where: { id } });
 
     if (!delivery) {
@@ -204,7 +223,7 @@ export class DeliveriesService {
       throw new BadRequestException('Delivery is not available');
     }
 
-    // 3. Consommer le quota du livreur
+    // 4. Consommer le quota du livreur
     try {
       await this.quotasService.useQuota(delivererId, delivery.id);
     } catch (error) {
@@ -213,7 +232,7 @@ export class DeliveriesService {
       );
     }
 
-    // 4. Mettre à jour la livraison
+    // 5. Mettre à jour la livraison
     delivery.deliverer_id = delivererId;
     delivery.status = DeliveryStatus.ACCEPTED;
     delivery.accepted_at = new Date();
@@ -269,10 +288,13 @@ export class DeliveriesService {
     }
 
     // Update status based on QR type
-    if (type === 'pickup' && delivery.status === DeliveryStatus.ACCEPTED) {
+    // Pickup: accepte ACCEPTED ou PICKUP_IN_PROGRESS
+    if (type === 'pickup' && (delivery.status === DeliveryStatus.ACCEPTED || delivery.status === DeliveryStatus.PICKUP_IN_PROGRESS)) {
       delivery.status = DeliveryStatus.PICKED_UP;
       delivery.picked_up_at = new Date();
-    } else if (type === 'delivery' && delivery.status === DeliveryStatus.DELIVERY_IN_PROGRESS) {
+    }
+    // Delivery: accepte PICKED_UP ou DELIVERY_IN_PROGRESS
+    else if (type === 'delivery' && (delivery.status === DeliveryStatus.PICKED_UP || delivery.status === DeliveryStatus.DELIVERY_IN_PROGRESS)) {
       delivery.status = DeliveryStatus.DELIVERED;
       delivery.delivered_at = new Date();
     }

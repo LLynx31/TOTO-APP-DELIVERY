@@ -1,3 +1,5 @@
+import 'dart:io';
+import 'package:dio/dio.dart';
 import '../config/api_config.dart';
 import 'api_client.dart';
 
@@ -30,7 +32,7 @@ class AuthService {
     await _apiClient.init();
   }
 
-  // Inscription livreur
+  // Inscription livreur avec documents KYC
   Future<AuthResponse> registerDeliverer({
     required String phoneNumber,
     required String password,
@@ -38,24 +40,67 @@ class AuthService {
     String? email,
     required String vehicleType,
     required String vehicleRegistration,
+    File? drivingLicense,
+    File? idCard,
+    File? vehiclePhoto,
   }) async {
     print('📝 AuthService.registerDeliverer() appelé');
     print('📞 Phone: $phoneNumber');
+    print('📄 Documents: license=${drivingLicense != null}, id=${idCard != null}, vehicle=${vehiclePhoto != null}');
     print('🌐 URL: ${ApiConfig.baseUrl}${ApiConfig.authDelivererRegister}');
 
-    final response = await _apiClient.post(
+    // Créer le FormData avec les données et les fichiers
+    final formData = FormData.fromMap({
+      'phone_number': phoneNumber,
+      'password': password,
+      'full_name': fullName,
+      if (email != null) 'email': email,
+      'vehicle_type': vehicleType,
+      'license_plate': vehicleRegistration,
+    });
+
+    // Ajouter les fichiers KYC si présents
+    if (drivingLicense != null) {
+      formData.files.add(MapEntry(
+        'driving_license',
+        await MultipartFile.fromFile(
+          drivingLicense.path,
+          filename: 'driving_license_${DateTime.now().millisecondsSinceEpoch}.jpg',
+        ),
+      ));
+      print('📎 Fichier driving_license ajouté');
+    }
+
+    if (idCard != null) {
+      formData.files.add(MapEntry(
+        'id_card',
+        await MultipartFile.fromFile(
+          idCard.path,
+          filename: 'id_card_${DateTime.now().millisecondsSinceEpoch}.jpg',
+        ),
+      ));
+      print('📎 Fichier id_card ajouté');
+    }
+
+    if (vehiclePhoto != null) {
+      formData.files.add(MapEntry(
+        'vehicle_photo',
+        await MultipartFile.fromFile(
+          vehiclePhoto.path,
+          filename: 'vehicle_photo_${DateTime.now().millisecondsSinceEpoch}.jpg',
+        ),
+      ));
+      print('📎 Fichier vehicle_photo ajouté');
+    }
+
+    print('📤 Envoi de la requête multipart...');
+    final response = await _apiClient.postMultipart(
       ApiConfig.authDelivererRegister,
-      data: {
-        'phone_number': phoneNumber,
-        'password': password,
-        'full_name': fullName,
-        if (email != null) 'email': email,
-        'vehicle_type': vehicleType,
-        'license_plate': vehicleRegistration, // Backend attend license_plate
-      },
+      formData: formData,
     );
 
     print('✅ Réponse inscription: ${response.statusCode}');
+    print('📦 Réponse data: ${response.data}');
 
     final authResponse = AuthResponse.fromJson(response.data);
     await _apiClient.saveTokens(
@@ -63,6 +108,7 @@ class AuthService {
       authResponse.refreshToken,
     );
 
+    print('💾 Tokens sauvegardés');
     return authResponse;
   }
 

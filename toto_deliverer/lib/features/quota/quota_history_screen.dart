@@ -21,6 +21,7 @@ class _QuotaHistoryScreenState extends ConsumerState<QuotaHistoryScreen> {
   final _quotaService = QuotaService();
   List<QuotaPurchase> _transactions = [];
   bool _isLoading = true;
+  int _lastTotalPurchased = -1; // -1 = non initialisé
 
   @override
   void initState() {
@@ -63,6 +64,32 @@ class _QuotaHistoryScreenState extends ConsumerState<QuotaHistoryScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Récupérer le quota actuel depuis le provider
+    final quotaState = ref.watch(quotaProvider);
+    final currentTotalPurchased = quotaState.activeQuota?.totalPurchased ?? 0;
+
+    // Détecter les changements de quota et recharger automatiquement
+    // _lastTotalPurchased == -1 signifie "non encore initialisé"
+    if (_lastTotalPurchased == -1) {
+      // Première initialisation
+      _lastTotalPurchased = currentTotalPurchased;
+      print('💾 QuotaHistoryScreen: Total purchased initial = $_lastTotalPurchased');
+    } else if (currentTotalPurchased != _lastTotalPurchased) {
+      // Le quota a changé, recharger l'historique
+      print('🔄 QuotaHistoryScreen: Quota changed detected ($_lastTotalPurchased → $currentTotalPurchased)');
+      print('   🔄 Auto-refreshing transaction history...');
+
+      // Mettre à jour la référence
+      _lastTotalPurchased = currentTotalPurchased;
+
+      // Recharger les transactions après le build
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && !_isLoading) {
+          _loadTransactions();
+        }
+      });
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Historique des achats'),
@@ -141,6 +168,7 @@ class _QuotaHistoryScreenState extends ConsumerState<QuotaHistoryScreen> {
 
                   // Recharger l'historique si un achat a été effectué
                   if (result == true && mounted) {
+                    print('✅ Achat détecté, rechargement de l\'historique...');
                     _loadTransactions();
                   }
                 },

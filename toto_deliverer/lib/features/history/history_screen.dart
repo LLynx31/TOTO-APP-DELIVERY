@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_sizes.dart';
 import '../../core/constants/app_strings.dart';
+import '../../core/services/hybrid_delivery_service.dart';
 import '../../core/utils/toast_utils.dart';
 import '../../core/utils/error_messages.dart';
 import '../../shared/models/delivery_model.dart';
@@ -20,10 +21,12 @@ class HistoryScreen extends StatefulWidget {
 class _HistoryScreenState extends State<HistoryScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  final _hybridDeliveryService = HybridDeliveryService();
 
   // Delivery history - Loaded from API
   List<DeliveryModel> _completedDeliveries = [];
   List<DeliveryModel> _cancelledDeliveries = [];
+  bool _isLoading = false;
 
   // Filter state
   String? _selectedPeriod;
@@ -38,26 +41,32 @@ class _HistoryScreenState extends State<HistoryScreen>
   }
 
   Future<void> _loadHistory() async {
+    if (_isLoading) return;
+
+    setState(() => _isLoading = true);
+
     try {
       print('📦 HistoryScreen: Chargement de l\'historique...');
 
-      // TODO: Implémenter getDeliveryHistory() dans HybridDeliveryService
-      // Pour l'instant, on simule avec des listes vides
-      // final history = await _hybridDeliveryService.getDeliveryHistory();
+      // Charger les livraisons complétées depuis le backend
+      final completedDeliveries = await _hybridDeliveryService.getCompletedDeliveries();
 
       if (!mounted) return;
 
       setState(() {
-        // _completedDeliveries = history.where((d) => d.status == DeliveryStatus.delivered).toList();
-        // _cancelledDeliveries = history.where((d) => d.status == DeliveryStatus.cancelled).toList();
-        _completedDeliveries = [];
+        _completedDeliveries = completedDeliveries;
+        // Pour les annulées, on pourrait ajouter un endpoint spécifique
+        // Pour l'instant, on filtre les livraisons avec status cancelled
         _cancelledDeliveries = [];
+        _isLoading = false;
       });
 
-      print('✅ HistoryScreen: Historique chargé');
+      print('✅ HistoryScreen: ${completedDeliveries.length} livraisons chargées');
     } catch (e) {
       print('❌ HistoryScreen: Erreur lors du chargement: $e');
       if (!mounted) return;
+
+      setState(() => _isLoading = false);
 
       ToastUtils.showError(
         context,
@@ -191,6 +200,13 @@ class _HistoryScreenState extends State<HistoryScreen>
   }
 
   Widget _buildDeliveryList(List<DeliveryModel> deliveries, DeliveryStatus status) {
+    // Afficher le loader pendant le chargement
+    if (_isLoading) {
+      return const Center(
+        child: CircularProgressIndicator(),
+      );
+    }
+
     // Apply filters
     final filteredDeliveries = _applyFilters(deliveries);
 
@@ -279,14 +295,19 @@ class _DeliveryHistoryCard extends StatelessWidget {
             children: [
               // Header: ID and Status
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    delivery.id,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
+                  Expanded(
+                    child: Text(
+                      delivery.id.length > 20
+                          ? '${delivery.id.substring(0, 8)}...${delivery.id.substring(delivery.id.length - 8)}'
+                          : delivery.id,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
+                  const SizedBox(width: AppSizes.spacingSm),
                   Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: AppSizes.paddingSm,
@@ -336,42 +357,45 @@ class _DeliveryHistoryCard extends StatelessWidget {
 
               // Footer: Price and Mode
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: AppSizes.paddingSm,
-                          vertical: 4,
+                  // Mode and weight
+                  Expanded(
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: AppSizes.paddingSm,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: delivery.mode == DeliveryMode.express
+                                ? AppColors.express.withValues(alpha: 0.1)
+                                : AppColors.standard.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(AppSizes.radiusSm),
+                          ),
+                          child: Text(
+                            delivery.mode == DeliveryMode.express ? 'Express' : 'Standard',
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                  color: delivery.mode == DeliveryMode.express
+                                      ? AppColors.express
+                                      : AppColors.standard,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                          ),
                         ),
-                        decoration: BoxDecoration(
-                          color: delivery.mode == DeliveryMode.express
-                              ? AppColors.express.withValues(alpha: 0.1)
-                              : AppColors.standard.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(AppSizes.radiusSm),
-                        ),
-                        child: Text(
-                          delivery.mode == DeliveryMode.express ? 'Express' : 'Standard',
+                        const SizedBox(width: AppSizes.spacingSm),
+                        Text(
+                          '${delivery.package.weight} kg',
                           style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: delivery.mode == DeliveryMode.express
-                                    ? AppColors.express
-                                    : AppColors.standard,
-                                fontWeight: FontWeight.w600,
+                                color: AppColors.textSecondary,
                               ),
                         ),
-                      ),
-                      const SizedBox(width: AppSizes.spacingSm),
-                      Text(
-                        '${delivery.package.weight} kg',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: AppColors.textSecondary,
-                            ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
+                  // Price
                   Text(
-                    '${delivery.price} FCFA',
+                    '${delivery.price.toStringAsFixed(0)} FCFA',
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                           color: AppColors.primary,
                           fontWeight: FontWeight.bold,

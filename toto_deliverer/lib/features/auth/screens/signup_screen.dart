@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
@@ -24,11 +23,26 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
   final _firstNameController = TextEditingController();
   final _lastNameController = TextEditingController();
   final _phoneController = TextEditingController();
-  final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   final _vehicleTypeController = TextEditingController();
   final _vehicleRegistrationController = TextEditingController();
+
+  // Pays sélectionné pour le téléphone
+  Country _selectedCountry = availableCountries.first; // Côte d'Ivoire par défaut
+
+  /// Retourne le numéro complet avec l'indicatif pays
+  String _getFullPhoneNumber() {
+    final localNumber = _phoneController.text.trim();
+    if (localNumber.isEmpty) return '';
+
+    // Supprimer le 0 initial si présent
+    final cleanNumber = localNumber.startsWith('0')
+        ? localNumber.substring(1)
+        : localNumber;
+
+    return '${_selectedCountry.dialCode}$cleanNumber';
+  }
 
   // Document files
   File? _drivingLicenseImage;
@@ -43,7 +57,6 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
     _firstNameController.dispose();
     _lastNameController.dispose();
     _phoneController.dispose();
-    _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     _vehicleTypeController.dispose();
@@ -100,46 +113,72 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
       return;
     }
 
-    // Note: Les documents sont optionnels pour l'instant
-    // L'admin validera le compte après vérification manuelle des documents
-    // Les documents seront uploadés via un endpoint séparé (à implémenter)
+    // Vérifier que tous les documents KYC sont fournis
+    if (_drivingLicenseImage == null) {
+      ToastUtils.showWarning(
+        context,
+        'Veuillez prendre une photo de votre permis de conduire',
+        title: 'Document requis',
+      );
+      return;
+    }
+
+    if (_idPhotoImage == null) {
+      ToastUtils.showWarning(
+        context,
+        'Veuillez prendre une photo de votre pièce d\'identité',
+        title: 'Document requis',
+      );
+      return;
+    }
+
+    if (_vehiclePhotoImage == null) {
+      ToastUtils.showWarning(
+        context,
+        'Veuillez prendre une photo de votre véhicule',
+        title: 'Document requis',
+      );
+      return;
+    }
 
     LoadingOverlay.show(context, message: 'Inscription en cours...');
 
     try {
-      print('📝 SignupScreen: Tentative d\'inscription...');
-      print('📞 Phone: ${_phoneController.text}');
+      // Construire le numéro complet avec indicatif pays
+      final fullPhoneNumber = _getFullPhoneNumber();
+      print('📝 SignupScreen: Tentative d\'inscription avec documents KYC...');
+      print('📞 Phone: $fullPhoneNumber');
+      print('📄 Documents: license=${_drivingLicenseImage != null}, id=${_idPhotoImage != null}, vehicle=${_vehiclePhotoImage != null}');
 
       // Combiner firstName et lastName en fullName
       final fullName = '${_firstNameController.text.trim()} ${_lastNameController.text.trim()}';
 
-      // Appeler l'API via AuthProvider
+      // Appeler l'API via AuthProvider avec les documents KYC
       await ref.read(authProvider.notifier).register(
-        phoneNumber: _phoneController.text.trim(),
+        phoneNumber: fullPhoneNumber,
         password: _passwordController.text,
         fullName: fullName,
-        email: _emailController.text.trim().isEmpty ? null : _emailController.text.trim(),
         vehicleType: _vehicleTypeController.text.trim(),
         vehicleRegistration: _vehicleRegistrationController.text.trim(),
+        drivingLicense: _drivingLicenseImage,
+        idCard: _idPhotoImage,
+        vehiclePhoto: _vehiclePhotoImage,
       );
 
       if (!mounted) return;
 
-      print('✅ SignupScreen: Inscription réussie!');
+      print('✅ SignupScreen: Inscription et upload des documents réussis!');
+
       await LoadingOverlay.hide();
 
       if (!mounted) return;
 
-      // TODO: Upload KYC documents (driving license, ID, vehicle photos) via separate API endpoint
-      // For now, documents are captured but will be uploaded in a future implementation
-
       // Show success dialog with validation info
-      if (!mounted) return;
 
       await showDialog(
         context: context,
         barrierDismissible: false,
-        builder: (context) => AlertDialog(
+        builder: (dialogContext) => AlertDialog(
           title: Row(
             children: [
               Container(
@@ -159,10 +198,32 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
-                'Votre compte a été créé avec succès.',
+                'Votre compte et vos documents ont été envoyés avec succès.',
                 style: TextStyle(fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                margin: const EdgeInsets.only(bottom: 12),
+                decoration: BoxDecoration(
+                  color: AppColors.success.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: AppColors.success.withValues(alpha: 0.3)),
+                ),
+                child: const Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.description, color: AppColors.success, size: 20),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Vos documents KYC ont été uploadés et sont en cours de vérification.',
+                        style: TextStyle(fontSize: 13),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
@@ -196,7 +257,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
           actions: [
             ElevatedButton(
               onPressed: () {
-                Navigator.of(context).pop(); // Close dialog
+                Navigator.of(dialogContext).pop(); // Close dialog
                 Navigator.of(context).pop(); // Go back to login
               },
               style: ElevatedButton.styleFrom(
@@ -300,38 +361,25 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
 
                   const SizedBox(height: AppSizes.spacingMd),
 
-                  // Phone
-                  CustomTextField(
+                  // Phone avec sélecteur de pays
+                  CountryPhoneField(
                     label: AppStrings.phone,
-                    hint: '+225 07 00 00 00 00',
+                    hint: '07 00 00 00 00',
                     controller: _phoneController,
-                    keyboardType: TextInputType.phone,
-                    prefixIcon: const Icon(Icons.phone_outlined),
+                    initialCountry: _selectedCountry,
+                    onCountryChanged: (country) {
+                      setState(() {
+                        _selectedCountry = country;
+                      });
+                    },
                     validator: (value) {
                       if (value == null || value.isEmpty) {
                         return AppStrings.requiredField;
                       }
-                      if (!value.contains(RegExp(r'^\+?[0-9]{10,}'))) {
-                        return AppStrings.invalidPhone;
-                      }
-                      return null;
-                    },
-                  ),
-
-                  const SizedBox(height: AppSizes.spacingMd),
-
-                  // Email (optional)
-                  CustomTextField(
-                    label: AppStrings.email,
-                    hint: 'jean.kouassi@example.com',
-                    controller: _emailController,
-                    keyboardType: TextInputType.emailAddress,
-                    prefixIcon: const Icon(Icons.email_outlined),
-                    validator: (value) {
-                      if (value != null && value.isNotEmpty) {
-                        if (!value.contains('@')) {
-                          return AppStrings.invalidEmail;
-                        }
+                      // Vérifier que le numéro contient au moins 6 chiffres
+                      final cleanNumber = value.replaceAll(RegExp(r'[\s\-\(\)]'), '');
+                      if (cleanNumber.length < 6) {
+                        return 'Numéro trop court';
                       }
                       return null;
                     },
@@ -411,12 +459,32 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
 
                   const SizedBox(height: AppSizes.spacingXl),
 
-                  // KYC Documents Section
+                  // KYC Documents Section (obligatoires)
+                  Row(
+                    children: [
+                      Text(
+                        AppStrings.documents,
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.primary,
+                            ),
+                      ),
+                      const Text(
+                        ' *',
+                        style: TextStyle(
+                          color: AppColors.error,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
                   Text(
-                    AppStrings.documents,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.primary,
+                    'Tous les documents sont obligatoires',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppColors.textSecondary,
+                          fontStyle: FontStyle.italic,
                         ),
                   ),
 
@@ -534,18 +602,10 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                   borderRadius: BorderRadius.circular(AppSizes.radiusSm),
                 ),
                 child: file != null
-                    ? ClipRRect(
-                        borderRadius: BorderRadius.circular(AppSizes.radiusSm),
-                        child: kIsWeb
-                            ? const Icon(
-                                Icons.check_circle,
-                                color: AppColors.success,
-                                size: 32,
-                              )
-                            : Image.file(
-                                file,
-                                fit: BoxFit.cover,
-                              ),
+                    ? const Icon(
+                        Icons.check_circle,
+                        color: AppColors.success,
+                        size: 32,
                       )
                     : const Icon(
                         Icons.camera_alt_outlined,

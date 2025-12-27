@@ -10,6 +10,7 @@ import { TrackingModule } from './tracking/tracking.module';
 import { QuotasModule } from './quotas/quotas.module';
 import { AdminModule } from './admin/admin.module';
 import { RatingsModule } from './ratings/ratings.module';
+import { UploadsModule } from './uploads/uploads.module';
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { RatingsModule } from './ratings/ratings.module';
     QuotasModule,
     AdminModule,
     RatingsModule,
+    UploadsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

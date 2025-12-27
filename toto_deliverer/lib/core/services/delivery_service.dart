@@ -11,12 +11,9 @@ class DeliveryService {
 
   /// Récupère les livraisons disponibles (statut: pending)
   ///
-  /// Backend: GET /deliveries?status=pending
+  /// Backend: GET /deliveries/available
   Future<List<DeliveryModel>> getAvailableDeliveries() async {
-    final response = await _apiClient.get(
-      ApiConfig.deliveriesAvailable,
-      queryParameters: {'status': 'pending'},
-    );
+    final response = await _apiClient.get(ApiConfig.deliveriesAvailable);
 
     final List<dynamic> data = response.data as List<dynamic>;
     return data

@@ -38,11 +38,10 @@ export class DeliverersService {
     const deliverer = await this.findById(delivererId);
 
     // Update allowed fields
+    // Note: phone_number n'est PAS modifiable car il sert d'identifiant unique
+    // Note: email a été retiré du système livreur
     if (updateDto.full_name !== undefined) {
       deliverer.full_name = updateDto.full_name;
-    }
-    if (updateDto.email !== undefined) {
-      deliverer.email = updateDto.email;
     }
     if (updateDto.photo_url !== undefined) {
       deliverer.photo_url = updateDto.photo_url;

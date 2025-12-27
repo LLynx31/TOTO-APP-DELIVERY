@@ -66,7 +66,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   Future<void> _saveProfile({
     required String firstName,
     required String lastName,
-    required String phone,
     required String vehicleType,
     required String licensePlate,
   }) async {
@@ -300,8 +299,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 children: [
                   _buildInfoRow('Prénom', deliverer.firstName),
                   _buildInfoRow('Nom', deliverer.lastName),
-                  _buildInfoRow('Téléphone', deliverer.phone),
-                  _buildInfoRow('Email', deliverer.email ?? 'Non renseigné', isSecondary: deliverer.email == null),
+                  _buildInfoRow('Téléphone', deliverer.phone, isLocked: true),
                 ],
               ),
               const SizedBox(height: AppSizes.spacingMd),
@@ -342,14 +340,20 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               // Bouton déconnexion
               SizedBox(
                 width: double.infinity,
-                child: OutlinedButton.icon(
+                child: ElevatedButton.icon(
                   onPressed: _logout,
-                  icon: const Icon(Icons.logout_outlined),
-                  label: const Text('Déconnexion'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.error,
-                    side: const BorderSide(color: AppColors.error),
+                  icon: const Icon(Icons.logout_outlined, color: Colors.white),
+                  label: const Text(
+                    'Déconnexion',
+                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.error,
+                    foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: AppSizes.paddingMd),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(AppSizes.radiusMd),
+                    ),
                   ),
                 ),
               ),
@@ -743,7 +747,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     );
   }
 
-  Widget _buildInfoRow(String label, String value, {bool isSecondary = false}) {
+  Widget _buildInfoRow(String label, String value, {bool isSecondary = false, bool isLocked = false}) {
     return Padding(
       padding: const EdgeInsets.symmetric(
         horizontal: AppSizes.paddingMd,
@@ -752,11 +756,24 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
-            label,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppColors.textSecondary,
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                label,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+              ),
+              if (isLocked) ...[
+                const SizedBox(width: 4),
+                Icon(
+                  Icons.lock_outline,
+                  size: 14,
+                  color: AppColors.textTertiary,
                 ),
+              ],
+            ],
           ),
           Flexible(
             child: Text(
@@ -781,7 +798,6 @@ class _EditProfileDialog extends StatefulWidget {
   final Future<void> Function({
     required String firstName,
     required String lastName,
-    required String phone,
     required String vehicleType,
     required String licensePlate,
   }) onSave;
@@ -798,7 +814,6 @@ class _EditProfileDialog extends StatefulWidget {
 class _EditProfileDialogState extends State<_EditProfileDialog> {
   late final TextEditingController _firstNameController;
   late final TextEditingController _lastNameController;
-  late final TextEditingController _phoneController;
   late final TextEditingController _vehicleTypeController;
   late final TextEditingController _licensePlateController;
   final _formKey = GlobalKey<FormState>();
@@ -808,7 +823,6 @@ class _EditProfileDialogState extends State<_EditProfileDialog> {
     super.initState();
     _firstNameController = TextEditingController(text: widget.deliverer.firstName);
     _lastNameController = TextEditingController(text: widget.deliverer.lastName);
-    _phoneController = TextEditingController(text: widget.deliverer.phone);
     _vehicleTypeController = TextEditingController(text: widget.deliverer.vehicle.type);
     _licensePlateController = TextEditingController(text: widget.deliverer.vehicle.plate);
   }
@@ -817,7 +831,6 @@ class _EditProfileDialogState extends State<_EditProfileDialog> {
   void dispose() {
     _firstNameController.dispose();
     _lastNameController.dispose();
-    _phoneController.dispose();
     _vehicleTypeController.dispose();
     _licensePlateController.dispose();
     super.dispose();
@@ -856,23 +869,6 @@ class _EditProfileDialogState extends State<_EditProfileDialog> {
               ),
               const SizedBox(height: AppSizes.spacingMd),
               CustomTextField(
-                controller: _phoneController,
-                label: 'Téléphone',
-                prefixIcon: const Icon(Icons.phone_outlined),
-                keyboardType: TextInputType.phone,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Le numéro de téléphone est requis';
-                  }
-                  final phoneRegex = RegExp(r'^\+225\d{10}$');
-                  if (!phoneRegex.hasMatch(value.replaceAll(' ', ''))) {
-                    return 'Format: +225XXXXXXXXXX';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: AppSizes.spacingMd),
-              CustomTextField(
                 controller: _vehicleTypeController,
                 label: 'Type de véhicule',
                 prefixIcon: const Icon(Icons.two_wheeler_outlined),
@@ -896,11 +892,11 @@ class _EditProfileDialogState extends State<_EditProfileDialog> {
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.info_outline, size: 16, color: AppColors.info),
+                    Icon(Icons.lock_outline, size: 16, color: AppColors.info),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        'L\'email ne peut pas être modifié',
+                        'Le numéro de téléphone ne peut pas être modifié',
                         style: TextStyle(
                           fontSize: 12,
                           color: AppColors.info,
@@ -926,7 +922,6 @@ class _EditProfileDialogState extends State<_EditProfileDialog> {
               await widget.onSave(
                 firstName: _firstNameController.text.trim(),
                 lastName: _lastNameController.text.trim(),
-                phone: _phoneController.text.trim(),
                 vehicleType: _vehicleTypeController.text.trim(),
                 licensePlate: _licensePlateController.text.trim(),
               );
