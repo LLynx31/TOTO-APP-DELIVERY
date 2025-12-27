@@ -48,9 +48,9 @@ class EnvConfig {
       case Environment.development:
         return _developmentUrl;
       case Environment.staging:
-        return 'https://staging-api.toto.ci';
+        return 'https://toto.tangagroup.com';
       case Environment.production:
-        return 'https://api.toto.ci';
+        return 'https://toto.tangagroup.com';
     }
   }
 
@@ -59,9 +59,9 @@ class EnvConfig {
       case Environment.development:
         return _developmentUrl;
       case Environment.staging:
-        return 'https://staging-api.toto.ci';
+        return 'https://toto.tangagroup.com';
       case Environment.production:
-        return 'https://api.toto.ci';
+        return 'https://toto.tangagroup.com';
     }
   }
 
