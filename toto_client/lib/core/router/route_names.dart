@@ -10,7 +10,6 @@ class RouteNames {
   // Main navigation
   static const String home = 'home';
   static const String deliveries = 'deliveries';
-  static const String quota = 'quota';
   static const String profile = 'profile';
 
   // Delivery
@@ -21,14 +20,6 @@ class RouteNames {
   static const String qrCode = 'qr-code';
   static const String rateDelivery = 'rate-delivery';
   static const String deliverySuccess = 'delivery-success';
-
-  // Quota
-  static const String purchaseQuota = 'purchase-quota';
-  static const String quotaHistory = 'quota-history';
-
-  // Payment
-  static const String payment = 'payment';
-  static const String paymentResult = 'payment-result';
 
   // Profile
   static const String editProfile = 'edit-profile';
@@ -49,7 +40,6 @@ class RoutePaths {
   // Main navigation (shell route children)
   static const String home = '/home';
   static const String deliveries = '/deliveries';
-  static const String quota = '/quota';
   static const String profile = '/profile';
 
   // Delivery
@@ -60,14 +50,6 @@ class RoutePaths {
   static const String qrCode = '/delivery/:id/qr';
   static const String rateDelivery = '/delivery/:id/rate';
   static const String deliverySuccess = '/delivery/:id/success';
-
-  // Quota
-  static const String purchaseQuota = '/quota/purchase';
-  static const String quotaHistory = '/quota/:id/history';
-
-  // Payment
-  static const String payment = '/payment';
-  static const String paymentResult = '/payment/result';
 
   // Profile
   static const String editProfile = '/profile/edit';

@@ -1,20 +1,13 @@
+import 'env_config.dart';
+
 /// Configuration de l'API backend
 class ApiConfig {
   ApiConfig._();
-
-  // Base URL
-  static const String baseUrl = 'http://10.0.2.2:3000'; // Android emulator
-  // static const String baseUrl = 'http://localhost:3000'; // iOS simulator
-  // static const String baseUrl = 'https://api.toto.ci'; // Production
 
   // Timeouts
   static const int connectTimeout = 30000; // 30 seconds
   static const int receiveTimeout = 30000; // 30 seconds
   static const int sendTimeout = 30000; // 30 seconds
-
-  // Token expiry (en secondes)
-  static const int accessTokenExpiry = 3600; // 1 heure
-  static const int refreshTokenExpiry = 604800; // 7 jours
 
   // Auth Endpoints
   static const String clientRegister = '/auth/client/register';
@@ -45,10 +38,8 @@ class ApiConfig {
   static String getDeliveryRating(String deliveryId) => '/deliveries/$deliveryId/rating';
   static String checkHasRated(String deliveryId) => '/deliveries/$deliveryId/has-rated';
 
-  // WebSocket
-  static const String socketUrl = 'http://10.0.2.2:3000';
-  // static const String socketUrl = 'http://localhost:3000'; // iOS
-  // static const String socketUrl = 'https://api.toto.ci'; // Production
+  // WebSocket - Utilise EnvConfig pour l'URL dynamique
+  static String get socketUrl => EnvConfig.socketUrl;
   static const String trackingNamespace = '/tracking';
 
   // Storage Keys

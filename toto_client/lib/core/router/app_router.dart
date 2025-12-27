@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'route_names.dart';
+import '../../presentation/providers/auth_provider.dart';
 
-// Screens (à importer une fois créés)
+// Screens
 import '../../presentation/screens/auth/login_screen.dart';
 import '../../presentation/screens/auth/register_screen.dart';
 import '../../presentation/screens/home/home_screen.dart';
@@ -15,53 +16,93 @@ import '../../presentation/screens/delivery/tracking/qr_display_screen.dart';
 import '../../presentation/screens/profile/profile_screen.dart';
 import '../../presentation/screens/profile/edit_profile_screen.dart';
 import '../../presentation/screens/profile/change_password_screen.dart';
-import '../../presentation/screens/delivery/payment/payment_screen.dart';
-import '../../presentation/screens/delivery/payment/payment_result_screen.dart';
 import '../../presentation/screens/rating/rate_delivery_screen.dart';
 import '../../presentation/screens/delivery/completion/delivery_success_screen.dart';
 import '../../presentation/screens/delivery/recipient/recipient_tracking_screen.dart';
 
-// Provider pour le router
-final routerProvider = Provider<GoRouter>((ref) {
-  return AppRouter.router;
+/// Classe pour écouter les changements d'état d'authentification
+class AuthNotifierListenable extends ChangeNotifier {
+  AuthNotifierListenable(this._ref) {
+    _ref.listen<AuthState>(
+      authProvider,
+      (previous, next) {
+        notifyListeners();
+      },
+    );
+  }
+
+  final Ref _ref;
+
+  bool get isAuthenticated {
+    final state = _ref.read(authProvider);
+    return state is AuthAuthenticated;
+  }
+
+  bool get isLoading {
+    final state = _ref.read(authProvider);
+    return state is AuthLoading || state is AuthInitial;
+  }
+}
+
+/// Provider pour le Listenable d'authentification
+final authListenableProvider = Provider<AuthNotifierListenable>((ref) {
+  return AuthNotifierListenable(ref);
 });
 
-/// Configuration du router GoRouter
-class AppRouter {
-  AppRouter._();
+/// Provider pour le router
+final routerProvider = Provider<GoRouter>((ref) {
+  final authListenable = ref.watch(authListenableProvider);
 
-  static final _rootNavigatorKey = GlobalKey<NavigatorState>();
-  static final _shellNavigatorKey = GlobalKey<NavigatorState>();
-
-  static final GoRouter router = GoRouter(
-    navigatorKey: _rootNavigatorKey,
-    initialLocation: RoutePaths.splash,
+  return GoRouter(
+    navigatorKey: GlobalKey<NavigatorState>(),
+    initialLocation: RoutePaths.splash, // Commencer par splash pour vérifier l'auth
     debugLogDiagnostics: true,
+    refreshListenable: authListenable,
 
     // Redirect logic pour l'authentification
     redirect: (context, state) {
-      // TODO: Implémenter la logique de redirection basée sur l'auth
-      // final isAuthenticated = ref.read(authProvider).isAuthenticated;
-      // final isAuthRoute = state.matchedLocation == RoutePaths.login ||
-      //     state.matchedLocation == RoutePaths.register;
+      final isAuthenticated = authListenable.isAuthenticated;
+      final isLoading = authListenable.isLoading;
 
-      // if (!isAuthenticated && !isAuthRoute) {
-      //   return RoutePaths.login;
-      // }
-      // if (isAuthenticated && isAuthRoute) {
-      //   return RoutePaths.home;
-      // }
+      final isAuthRoute = state.matchedLocation == RoutePaths.login ||
+          state.matchedLocation == RoutePaths.register;
+
+      final isSplashRoute = state.matchedLocation == RoutePaths.splash;
+
+      final isRecipientRoute = state.matchedLocation.startsWith('/recipient/');
+
+      // Pendant le chargement initial (splash), laisser afficher le splash
+      if (isLoading && isSplashRoute) {
+        return null;
+      }
+
+      // Si sur splash et plus en chargement, rediriger selon l'auth
+      if (isSplashRoute && !isLoading) {
+        return isAuthenticated ? RoutePaths.home : RoutePaths.login;
+      }
+
+      // Si non authentifié et pas sur une route auth, rediriger vers login
+      // Exception: les routes recipient sont accessibles sans auth
+      if (!isAuthenticated && !isAuthRoute && !isRecipientRoute && !isLoading) {
+        return RoutePaths.login;
+      }
+
+      // Si authentifié et sur une route auth, rediriger vers home
+      if (isAuthenticated && isAuthRoute) {
+        return RoutePaths.home;
+      }
+
       return null;
     },
 
     routes: [
       // ==================
-      // Splash / Root Route
+      // Splash / Root Route - Vérifie l'auth au démarrage
       // ==================
       GoRoute(
         path: RoutePaths.splash,
         name: RouteNames.splash,
-        redirect: (context, state) => RoutePaths.home,
+        builder: (context, state) => const _SplashScreen(),
       ),
 
       // ==================
@@ -82,7 +123,7 @@ class AppRouter {
       // Main Shell Route (avec bottom navigation)
       // ==================
       ShellRoute(
-        navigatorKey: _shellNavigatorKey,
+        navigatorKey: GlobalKey<NavigatorState>(),
         builder: (context, state, child) => MainScaffold(child: child),
         routes: [
           GoRoute(
@@ -165,26 +206,6 @@ class AppRouter {
       ),
 
       // ==================
-      // Payment Routes
-      // ==================
-      GoRoute(
-        path: RoutePaths.payment,
-        name: RouteNames.payment,
-        builder: (context, state) {
-          final amount = state.extra as double? ?? 0.0;
-          return PaymentScreen(amount: amount);
-        },
-      ),
-      GoRoute(
-        path: RoutePaths.paymentResult,
-        name: RouteNames.paymentResult,
-        builder: (context, state) {
-          final result = state.extra as Map<String, dynamic>?;
-          return PaymentResultScreen(result: result ?? {});
-        },
-      ),
-
-      // ==================
       // Profile Routes
       // ==================
       GoRoute(
@@ -223,6 +244,57 @@ class AppRouter {
       ),
     ),
   );
+});
+
+/// Écran de splash temporaire pendant la vérification de l'auth
+class _SplashScreen extends ConsumerStatefulWidget {
+  const _SplashScreen();
+
+  @override
+  ConsumerState<_SplashScreen> createState() => _SplashScreenState();
+}
+
+class _SplashScreenState extends ConsumerState<_SplashScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // Vérifier l'authentification au démarrage
+    Future.microtask(() {
+      ref.read(authProvider.notifier).checkAuth();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Theme.of(context).primaryColor,
+      body: const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.local_shipping_rounded,
+              size: 80,
+              color: Colors.white,
+            ),
+            SizedBox(height: 24),
+            Text(
+              'TOTO',
+              style: TextStyle(
+                fontSize: 32,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+            SizedBox(height: 16),
+            CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 /// Extension pour la navigation simplifiée
@@ -237,10 +309,6 @@ extension GoRouterExtension on BuildContext {
   void goToTracking(String deliveryId) => push('/delivery/$deliveryId/tracking');
   void goToQRCode(String deliveryId, {String type = 'pickup'}) =>
       push('/delivery/$deliveryId/qr?type=$type');
-
-  void goToPayment(double amount) => push(RoutePaths.payment, extra: amount);
-  void goToPaymentResult(Map<String, dynamic> result) =>
-      go(RoutePaths.paymentResult, extra: result);
 
   void goToEditProfile() => push(RoutePaths.editProfile);
   void goToChangePassword() => push(RoutePaths.changePassword);

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import '../../../core/network/api_exception.dart';
 import '../../domain/entities/delivery.dart';
 import '../../domain/repositories/delivery_repository.dart';
@@ -41,14 +42,20 @@ class DeliveryRepositoryImpl implements DeliveryRepository {
   @override
   Future<Result<List<Delivery>>> getDeliveries({DeliveryStatus? status}) async {
     try {
+      debugPrint('[DeliveryRepository] getDeliveries called, status: $status');
       final statusString = status != null ? _statusToString(status) : null;
       final result = await remoteDatasource.getDeliveries(status: statusString);
+      debugPrint('[DeliveryRepository] Got ${result.length} DTOs from datasource');
       final deliveries = result.map(_mapDtoToEntity).toList();
+      debugPrint('[DeliveryRepository] Mapped to ${deliveries.length} entities');
       return Success(deliveries);
     } on ApiException catch (e) {
+      debugPrint('[DeliveryRepository] ApiException: ${e.message}');
       return Failure(e.message);
-    } catch (e) {
-      return const Failure('Erreur lors de la récupération des livraisons');
+    } catch (e, stackTrace) {
+      debugPrint('[DeliveryRepository] Exception: $e');
+      debugPrint('[DeliveryRepository] StackTrace: $stackTrace');
+      return Failure('Erreur lors de la récupération des livraisons: $e');
     }
   }
 

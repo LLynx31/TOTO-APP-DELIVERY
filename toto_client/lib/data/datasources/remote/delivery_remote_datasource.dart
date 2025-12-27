@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import '../../../core/config/api_config.dart';
 import '../../../core/network/dio_client.dart';
 import '../../models/delivery/create_delivery_dto.dart';
@@ -34,12 +35,15 @@ class DeliveryRemoteDatasourceImpl implements DeliveryRemoteDatasource {
 
   @override
   Future<List<DeliveryDto>> getDeliveries({String? status}) async {
+    debugPrint('[DeliveryRemoteDatasource] getDeliveries called, status: $status');
     final response = await dioClient.get(
       ApiConfig.deliveries,
       queryParameters: status != null ? {'status': status} : null,
     );
 
+    debugPrint('[DeliveryRemoteDatasource] Response: ${response.data}');
     final List<dynamic> data = response.data as List;
+    debugPrint('[DeliveryRemoteDatasource] Parsed ${data.length} deliveries');
     return data.map((json) => DeliveryDto.fromJson(json)).toList();
   }
 

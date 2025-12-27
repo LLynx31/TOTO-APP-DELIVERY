@@ -8,6 +8,7 @@ import '../../../core/utils/validators.dart';
 import '../../providers/auth_provider.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/custom_text_field.dart';
+import '../../widgets/country_phone_field.dart';
 
 /// Écran d'inscription
 class RegisterScreen extends ConsumerStatefulWidget {
@@ -24,8 +25,10 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+  final _phoneFieldKey = GlobalKey<CountryPhoneFieldState>();
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
+  Country _selectedCountry = availableCountries.first; // Côte d'Ivoire par défaut
 
   @override
   void dispose() {
@@ -37,13 +40,27 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     super.dispose();
   }
 
+  /// Récupère le numéro complet avec indicatif pays
+  String _getFullPhoneNumber() {
+    final localNumber = _phoneController.text.trim();
+    if (localNumber.isEmpty) return '';
+
+    // Supprimer le 0 initial si présent
+    final cleanNumber = localNumber.startsWith('0')
+        ? localNumber.substring(1)
+        : localNumber;
+
+    return '${_selectedCountry.dialCode}$cleanNumber';
+  }
+
   void _handleRegister() async {
     if (!_formKey.currentState!.validate()) {
       return;
     }
 
     final fullName = _fullNameController.text.trim();
-    final phoneNumber = _phoneController.text.trim();
+    // Utiliser le numéro complet avec indicatif pays
+    final phoneNumber = _getFullPhoneNumber();
     final email = _emailController.text.trim();
     final password = _passwordController.text;
 
@@ -130,15 +147,30 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
                 const SizedBox(height: AppSizes.spacingMd),
 
-                // Champ numéro de téléphone
-                CustomTextField(
+                // Champ numéro de téléphone avec sélecteur de pays
+                CountryPhoneField(
+                  key: _phoneFieldKey,
                   controller: _phoneController,
                   label: AppStrings.phoneNumber,
-                  hint: '+225 07 XX XX XX XX',
-                  keyboardType: TextInputType.phone,
-                  prefixIcon: Icons.phone_outlined,
-                  validator: Validators.validatePhone,
+                  hint: '07 00 00 00 00',
                   enabled: !isLoading,
+                  initialCountry: _selectedCountry,
+                  onCountryChanged: (country) {
+                    setState(() {
+                      _selectedCountry = country;
+                    });
+                  },
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Veuillez entrer votre numéro de téléphone';
+                    }
+                    // Validation basique: au moins 8 chiffres
+                    final digitsOnly = value.replaceAll(RegExp(r'[^\d]'), '');
+                    if (digitsOnly.length < 8) {
+                      return 'Numéro de téléphone invalide';
+                    }
+                    return null;
+                  },
                 ),
 
                 const SizedBox(height: AppSizes.spacingMd),

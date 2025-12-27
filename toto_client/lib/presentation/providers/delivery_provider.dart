@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../domain/entities/delivery.dart';
 import '../../domain/repositories/delivery_repository.dart';
@@ -6,7 +7,6 @@ import '../../domain/usecases/delivery/create_delivery_usecase.dart';
 import '../../domain/usecases/delivery/get_deliveries_usecase.dart';
 import '../../domain/usecases/delivery/get_delivery_usecase.dart';
 import '../../core/di/injection.dart' as di;
-import 'auth_provider.dart';
 
 /// État de la liste de livraisons
 sealed class DeliveriesState {
@@ -68,14 +68,28 @@ class DeliveriesNotifier extends StateNotifier<DeliveriesState> {
 
   /// Charger les livraisons
   Future<void> loadDeliveries({DeliveryStatus? status}) async {
+    debugPrint('[DeliveriesProvider] loadDeliveries called, status: $status');
     state = const DeliveriesLoading();
 
-    final result = await getDeliveriesUsecase(status: status);
+    try {
+      final result = await getDeliveriesUsecase(status: status);
+      debugPrint('[DeliveriesProvider] Result received: $result');
 
-    result.fold(
-      (deliveries) => state = DeliveriesLoaded(deliveries),
-      (error) => state = DeliveriesError(error),
-    );
+      result.fold(
+        (deliveries) {
+          debugPrint('[DeliveriesProvider] Success: ${deliveries.length} deliveries');
+          state = DeliveriesLoaded(deliveries);
+        },
+        (error) {
+          debugPrint('[DeliveriesProvider] Error: $error');
+          state = DeliveriesError(error);
+        },
+      );
+    } catch (e, stackTrace) {
+      debugPrint('[DeliveriesProvider] Exception: $e');
+      debugPrint('[DeliveriesProvider] StackTrace: $stackTrace');
+      state = DeliveriesError('Erreur: $e');
+    }
   }
 
   /// Créer une livraison

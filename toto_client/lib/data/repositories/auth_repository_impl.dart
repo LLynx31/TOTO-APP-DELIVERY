@@ -194,6 +194,17 @@ class AuthRepositoryImpl implements AuthRepository {
 /// Type Result pour gérer les succès et échecs
 sealed class Result<T> {
   const Result();
+
+  /// Permet de traiter les deux cas (succès et échec) avec des fonctions
+  R fold<R>(
+    R Function(T data) onSuccess,
+    R Function(String error) onFailure,
+  ) {
+    return switch (this) {
+      Success(:final data) => onSuccess(data),
+      Failure(:final message) => onFailure(message),
+    };
+  }
 }
 
 class Success<T> extends Result<T> {

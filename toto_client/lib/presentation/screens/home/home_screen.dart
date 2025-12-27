@@ -32,8 +32,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    _initializeLocation();
+    // Charger les livraisons immédiatement (prioritaire)
     _loadActiveDeliveries();
+    // Charger la localisation en parallèle
+    _initializeLocation();
   }
 
   /// Initialiser la localisation
@@ -93,13 +95,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   /// Charger les livraisons actives
   Future<void> _loadActiveDeliveries() async {
-    await ref.read(deliveriesProvider.notifier).loadDeliveries();
+    debugPrint('[HomeScreen] _loadActiveDeliveries called');
+    try {
+      await ref.read(deliveriesProvider.notifier).loadDeliveries();
+      debugPrint('[HomeScreen] loadDeliveries completed');
+    } catch (e) {
+      debugPrint('[HomeScreen] loadDeliveries error: $e');
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authProvider);
     final deliveriesState = ref.watch(deliveriesProvider);
+
+    debugPrint('[HomeScreen] build - deliveriesState: ${deliveriesState.runtimeType}');
 
     // Obtenir le nom de l'utilisateur
     String userName = 'Utilisateur';
@@ -191,49 +201,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
           ),
 
-          // Bouton "Nouvelle livraison" - Amélioré UI
-          Positioned(
-            bottom: 200,
-            right: AppSizes.paddingMd,
-            child: Container(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(AppSizes.radiusFull),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.primary.withValues(alpha: 0.4),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: FloatingActionButton.extended(
-                onPressed: () {
-                  // Navigation vers la création de livraison
-                  context.goToCreateDelivery();
-                },
-                backgroundColor: AppColors.primary,
-                elevation: 0,
-                icon: const Icon(Icons.add_circle_outline, color: Colors.white, size: 24),
-                label: const Text(
-                  AppStrings.newDelivery,
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-              ),
-            ),
-          ),
-
           // Bouton pour recentrer sur la position actuelle
           Positioned(
-            bottom: 280,
-            right: AppSizes.paddingMd,
+            bottom: MediaQuery.of(context).size.height * 0.38,
+            right: AppSizes.paddingLg,
             child: FloatingActionButton(
               mini: true,
+              heroTag: 'location_btn',
               backgroundColor: Colors.white,
+              elevation: 4,
               onPressed: _moveCameraToCurrentLocation,
               child: Icon(
                 Icons.my_location,
@@ -242,11 +218,80 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
           ),
 
-          // Bottom sheet avec livraisons actives
+          // Bouton "Nouvelle livraison" - Centré en bas au-dessus du panneau
+          Positioned(
+            bottom: MediaQuery.of(context).size.height * 0.12,
+            left: AppSizes.paddingLg,
+            right: AppSizes.paddingLg,
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                gradient: LinearGradient(
+                  colors: [
+                    AppColors.primary,
+                    AppColors.primary.withValues(alpha: 0.85),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.primary.withValues(alpha: 0.4),
+                    blurRadius: 16,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
+              ),
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () => context.goToCreateDelivery(),
+                  borderRadius: BorderRadius.circular(16),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      vertical: AppSizes.paddingMd + 4,
+                      horizontal: AppSizes.paddingLg,
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(
+                            Icons.add_rounded,
+                            color: Colors.white,
+                            size: 22,
+                          ),
+                        ),
+                        const SizedBox(width: AppSizes.spacingMd),
+                        const Text(
+                          AppStrings.newDelivery,
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 17,
+                            letterSpacing: 0.3,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+
+          // Bottom sheet avec livraisons actives - Swipable jusqu'en bas
           DraggableScrollableSheet(
-            initialChildSize: 0.15,
-            minChildSize: 0.15,
-            maxChildSize: 0.6,
+            initialChildSize: 0.08,
+            minChildSize: 0.08,
+            maxChildSize: 0.85,
+            snap: true,
+            snapSizes: const [0.08, 0.35, 0.6, 0.85],
             builder: (context, scrollController) {
               return Container(
                 decoration: BoxDecoration(
@@ -257,40 +302,72 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.1),
-                      blurRadius: 10,
-                      offset: const Offset(0, -2),
+                      color: Colors.black.withValues(alpha: 0.15),
+                      blurRadius: 15,
+                      offset: const Offset(0, -4),
                     ),
                   ],
                 ),
                 child: Column(
                   children: [
-                    // Handle
-                    Container(
-                      margin: const EdgeInsets.symmetric(vertical: AppSizes.spacingMd),
-                      width: AppSizes.bottomSheetHandleWidth,
-                      height: AppSizes.bottomSheetHandleHeight,
-                      decoration: BoxDecoration(
-                        color: AppColors.textTertiary,
-                        borderRadius: BorderRadius.circular(AppSizes.radiusFull),
+                    // Handle - Plus visible pour indiquer le swipe
+                    GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(vertical: AppSizes.spacingMd),
+                        child: Center(
+                          child: Container(
+                            width: 50,
+                            height: 5,
+                            decoration: BoxDecoration(
+                              color: AppColors.textTertiary.withValues(alpha: 0.5),
+                              borderRadius: BorderRadius.circular(AppSizes.radiusFull),
+                            ),
+                          ),
+                        ),
                       ),
                     ),
-                    // Titre
+                    // Titre avec compteur
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: AppSizes.paddingLg),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(
-                            AppStrings.activeDeliveries,
-                            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                  color: AppColors.textPrimary,
+                          Row(
+                            children: [
+                              Text(
+                                AppStrings.activeDeliveries,
+                                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                      fontWeight: FontWeight.bold,
+                                      color: AppColors.textPrimary,
+                                    ),
+                              ),
+                              if (deliveriesState is DeliveriesLoaded) ...[
+                                const SizedBox(width: 8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.primary,
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Text(
+                                    '${deliveriesState.deliveries.where((d) => d.status == DeliveryStatus.pending || d.status == DeliveryStatus.accepted || d.status == DeliveryStatus.pickupInProgress || d.status == DeliveryStatus.pickedUp || d.status == DeliveryStatus.deliveryInProgress).length}',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
                                 ),
+                              ],
+                            ],
                           ),
                           TextButton(
                             onPressed: () {
-                              // Navigation vers l'onglet livraisons
                               context.go(RoutePaths.deliveries);
                             },
                             child: Text(
@@ -304,6 +381,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         ],
                       ),
                     ),
+                    const SizedBox(height: AppSizes.spacingSm),
                     // Liste des livraisons
                     Expanded(
                       child: _buildDeliveriesList(deliveriesState, scrollController),
@@ -319,15 +397,70 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   Widget _buildDeliveriesList(DeliveriesState state, ScrollController scrollController) {
-    if (state is DeliveriesLoading) {
-      return const Center(child: CircularProgressIndicator());
+    if (state is DeliveriesLoading || state is DeliveriesInitial) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const CircularProgressIndicator(),
+            const SizedBox(height: AppSizes.spacingMd),
+            Text(
+              'Chargement...',
+              style: TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 14,
+              ),
+            ),
+          ],
+        ),
+      );
     }
 
     if (state is DeliveriesError) {
-      return Center(
-        child: Text(
-          state.message,
-          style: TextStyle(color: AppColors.error),
+      return SingleChildScrollView(
+        controller: scrollController,
+        physics: const AlwaysScrollableScrollPhysics(),
+        child: Container(
+          padding: const EdgeInsets.all(AppSizes.paddingLg),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.cloud_off,
+                size: 48,
+                color: AppColors.textTertiary,
+              ),
+              const SizedBox(height: AppSizes.spacingMd),
+              Text(
+                'Impossible de charger les livraisons',
+                style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: AppSizes.spacingSm),
+              Text(
+                state.message,
+                style: TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 13,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: AppSizes.spacingLg),
+              ElevatedButton.icon(
+                onPressed: _loadActiveDeliveries,
+                icon: const Icon(Icons.refresh),
+                label: const Text('Réessayer'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                ),
+              ),
+            ],
+          ),
         ),
       );
     }

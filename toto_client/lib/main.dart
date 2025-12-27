@@ -7,11 +7,20 @@ import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
 import 'core/constants/app_strings.dart';
 
-void main() {
+/// Point d'entrée pour le mode DÉVELOPPEMENT (localhost)
+void main() => _runApp(Environment.development);
+
+/// Point d'entrée pour le mode STAGING (staging.toto.tangagroup.com)
+void mainStaging() => _runApp(Environment.staging);
+
+/// Point d'entrée pour le mode PRODUCTION (toto.tangagroup.com)
+void mainProduction() => _runApp(Environment.production);
+
+void _runApp(Environment env) {
   WidgetsFlutterBinding.ensureInitialized();
 
   // Configuration de l'environnement
-  EnvConfig.setEnvironment(Environment.development);
+  EnvConfig.setEnvironment(env);
 
   // Configuration de la barre de statut
   SystemChrome.setSystemUIOverlayStyle(
