@@ -26,7 +26,9 @@
     "migration:show": "pnpm typeorm migration:show -d src/data-source.ts",
     "migration:create": "pnpm typeorm migration:create",
     "migration:run-sql": "ts-node -r tsconfig-paths/register scripts/run-sql-migration.ts",
-    "create-test-users": "ts-node -r tsconfig-paths/register scripts/create-test-users.ts"
+    "cleanup-test-data": "ts-node -r tsconfig-paths/register scripts/cleanup-test-data.ts",
+    "create-test-users": "ts-node -r tsconfig-paths/register scripts/create-test-users.ts",
+    "reset-test-data": "pnpm run cleanup-test-data && pnpm run create-test-users"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",

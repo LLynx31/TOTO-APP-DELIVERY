@@ -91,11 +91,24 @@ class _DeliveriesListScreenState extends ConsumerState<DeliveriesListScreen> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => context.goToCreateDelivery(),
-        icon: const Icon(Icons.add),
-        label: const Text('Nouvelle livraison'),
-        backgroundColor: AppColors.primary,
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.only(
+          right: AppSizes.paddingMd,
+          bottom: AppSizes.paddingMd,
+        ),
+        child: FloatingActionButton.extended(
+          onPressed: () => context.goToCreateDelivery(),
+          icon: const Icon(Icons.add, color: Colors.white),
+          label: const Text(
+            'Nouvelle livraison',
+            style: TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          backgroundColor: AppColors.primary,
+          elevation: 4,
+        ),
       ),
     );
   }
@@ -103,15 +116,18 @@ class _DeliveriesListScreenState extends ConsumerState<DeliveriesListScreen> {
   Widget _buildFilterChips() {
     return Container(
       height: 50,
-      padding: const EdgeInsets.symmetric(horizontal: AppSizes.paddingMd),
+      padding: const EdgeInsets.symmetric(horizontal: AppSizes.paddingLg),
       child: ListView(
         scrollDirection: Axis.horizontal,
         children: DeliveryFilter.values.map((filter) {
           final isSelected = _selectedFilter == filter;
           return Padding(
-            padding: const EdgeInsets.only(right: AppSizes.spacingSm),
+            padding: const EdgeInsets.only(right: AppSizes.spacingMd),
             child: ChoiceChip(
-              label: Text(filter.label),
+              label: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: Text(filter.label),
+              ),
               selected: isSelected,
               onSelected: (selected) {
                 if (selected) {
@@ -122,10 +138,15 @@ class _DeliveriesListScreenState extends ConsumerState<DeliveriesListScreen> {
                 }
               },
               selectedColor: AppColors.primary,
+              backgroundColor: Colors.grey.shade100,
               labelStyle: TextStyle(
                 color: isSelected ? Colors.white : AppColors.textPrimary,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
               ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              side: BorderSide.none,
             ),
           );
         }).toList(),
@@ -156,13 +177,21 @@ class _DeliveriesListScreenState extends ConsumerState<DeliveriesListScreen> {
           await ref.read(deliveriesProvider.notifier).refresh();
         },
         child: ListView.builder(
-          padding: const EdgeInsets.all(AppSizes.paddingMd),
+          padding: const EdgeInsets.only(
+            left: AppSizes.paddingLg,
+            right: AppSizes.paddingLg,
+            top: AppSizes.paddingMd,
+            bottom: 100, // Espace pour le FAB
+          ),
           itemCount: deliveries.length,
           itemBuilder: (context, index) {
             final delivery = deliveries[index];
-            return DeliveryCard(
-              delivery: delivery,
-              onTap: () => _handleDeliveryTap(delivery),
+            return Padding(
+              padding: const EdgeInsets.only(bottom: AppSizes.spacingMd),
+              child: DeliveryCard(
+                delivery: delivery,
+                onTap: () => _handleDeliveryTap(delivery),
+              ),
             );
           },
         ),
@@ -203,44 +232,68 @@ class _DeliveriesListScreenState extends ConsumerState<DeliveriesListScreen> {
     }
 
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            icon,
-            size: 80,
-            color: AppColors.textSecondary,
-          ),
-          const SizedBox(height: AppSizes.spacingMd),
-          Text(
-            message,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: AppColors.textSecondary,
-                ),
-          ),
-          const SizedBox(height: AppSizes.spacingSm),
-          Text(
-            'Créez une nouvelle livraison pour commencer',
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppColors.textTertiary,
-                ),
-          ),
-          const SizedBox(height: AppSizes.spacingLg),
-          ElevatedButton.icon(
-            onPressed: () => context.goToCreateDelivery(),
-            icon: const Icon(Icons.add),
-            label: const Text('Nouvelle livraison'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSizes.paddingLg,
-                vertical: AppSizes.paddingMd,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: AppSizes.paddingXl),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                icon,
+                size: 64,
+                color: AppColors.primary.withValues(alpha: 0.7),
               ),
             ),
-          ),
-        ],
+            const SizedBox(height: AppSizes.spacingLg),
+            Text(
+              message,
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w600,
+                  ),
+            ),
+            const SizedBox(height: AppSizes.spacingSm),
+            Text(
+              'Créez une nouvelle livraison pour commencer',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+            ),
+            const SizedBox(height: AppSizes.spacingXl),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () => context.goToCreateDelivery(),
+                icon: const Icon(Icons.add, color: Colors.white),
+                label: const Text(
+                  'Nouvelle livraison',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 16,
+                  ),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSizes.paddingLg,
+                    vertical: AppSizes.paddingMd + 4,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  elevation: 2,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -248,20 +301,28 @@ class _DeliveriesListScreenState extends ConsumerState<DeliveriesListScreen> {
   Widget _buildErrorState(String message) {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(AppSizes.paddingLg),
+        padding: const EdgeInsets.symmetric(horizontal: AppSizes.paddingXl),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(
-              Icons.error_outline,
-              size: 80,
-              color: AppColors.error,
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: AppColors.error.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.cloud_off_outlined,
+                size: 64,
+                color: AppColors.error.withValues(alpha: 0.7),
+              ),
             ),
-            const SizedBox(height: AppSizes.spacingMd),
+            const SizedBox(height: AppSizes.spacingLg),
             Text(
               'Une erreur s\'est produite',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
                   ),
             ),
             const SizedBox(height: AppSizes.spacingSm),
@@ -272,14 +333,31 @@ class _DeliveriesListScreenState extends ConsumerState<DeliveriesListScreen> {
                     color: AppColors.textSecondary,
                   ),
             ),
-            const SizedBox(height: AppSizes.spacingLg),
-            ElevatedButton.icon(
-              onPressed: _loadDeliveries,
-              icon: const Icon(Icons.refresh),
-              label: const Text('Réessayer'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
+            const SizedBox(height: AppSizes.spacingXl),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: _loadDeliveries,
+                icon: const Icon(Icons.refresh, color: Colors.white),
+                label: const Text(
+                  'Réessayer',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 16,
+                  ),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSizes.paddingLg,
+                    vertical: AppSizes.paddingMd + 4,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  elevation: 2,
+                ),
               ),
             ),
           ],
