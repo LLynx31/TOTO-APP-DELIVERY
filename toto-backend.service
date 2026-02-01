@@ -1,0 +1,51 @@
+[Unit]
+Description=TOTO Backend API Server
+Documentation=https://github.com/votre-org/toto.tangagroup.com
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=simple
+User=appuser
+Group=appuser
+
+# Change au répertoire de l'application
+WorkingDirectory=/home/Nycaise/web/toto.tangagroup.com/app
+
+# Charger les variables d'environnement
+EnvironmentFile=/home/Nycaise/web/toto.tangagroup.com/app/.env
+Environment="NODE_ENV=production"
+
+# Chemin vers node (adapter selon votre installation)
+# Si vous utilisez NVM:
+Environment="PATH=/home/appuser/.nvm/versions/node/v18.19.1/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin"
+
+# Commande de démarrage
+ExecStart=/home/appuser/.nvm/versions/node/v18.19.1/bin/node dist/src/main.js
+
+# Restart policy
+Restart=on-failure
+RestartSec=10
+StartLimitInterval=60s
+StartLimitBurst=3
+
+# Security
+NoNewPrivileges=true
+PrivateTmp=true
+
+# Resource limits
+LimitNOFILE=65536
+LimitNPROC=65536
+
+# Logging
+StandardOutput=append:/var/log/toto-backend.log
+StandardError=append:/var/log/toto-backend.log
+SyslogIdentifier=toto-backend
+
+# Process management
+KillMode=process
+KillSignal=SIGTERM
+TimeoutStopSec=30s
+
+[Install]
+WantedBy=multi-user.target

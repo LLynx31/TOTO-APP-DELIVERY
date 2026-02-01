@@ -1,6 +1,7 @@
 import { DataSource } from 'typeorm';
 import { config } from 'dotenv';
 import { createSuperAdmin } from './seeds/create-super-admin';
+import { createDeliveryWorkflow } from './seeds/create-delivery-workflow';
 
 // Load environment variables
 config();
@@ -27,6 +28,7 @@ async function runSeeds() {
 
     // Run seeds
     await createSuperAdmin(dataSource);
+    await createDeliveryWorkflow(dataSource);
 
     console.log('\n✅ All seeds completed successfully!');
   } catch (error) {

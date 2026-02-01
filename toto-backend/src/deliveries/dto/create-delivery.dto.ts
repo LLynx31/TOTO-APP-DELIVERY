@@ -51,8 +51,8 @@ export class CreateDeliveryDto {
   })
   @IsOptional()
   @IsString()
-  @Matches(/^\+225\d{8,10}$/, {
-    message: 'Phone number must be in format +225XXXXXXXX',
+  @Matches(/^\+[1-9]\d{6,14}$/, {
+    message: 'Le numéro de téléphone doit commencer par + suivi de l\'indicatif pays et du numéro (ex: +22507123456)',
   })
   pickup_phone?: string;
 
@@ -95,8 +95,8 @@ export class CreateDeliveryDto {
   })
   @IsString()
   @IsNotEmpty()
-  @Matches(/^\+225\d{8,10}$/, {
-    message: 'Phone number must be in format +225XXXXXXXX',
+  @Matches(/^\+[1-9]\d{6,14}$/, {
+    message: 'Le numéro de téléphone doit commencer par + suivi de l\'indicatif pays et du numéro (ex: +22507123456)',
   })
   delivery_phone: string;
 

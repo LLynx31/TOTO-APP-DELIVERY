@@ -19,8 +19,8 @@ class Country {
 
 /// Liste des pays disponibles (Afrique de l'Ouest principalement + quelques autres)
 const List<Country> availableCountries = [
-  Country(name: 'Côte d\'Ivoire', code: 'CI', dialCode: '+225', flag: '🇨🇮'),
   Country(name: 'Burkina Faso', code: 'BF', dialCode: '+226', flag: '🇧🇫'),
+  Country(name: 'Côte d\'Ivoire', code: 'CI', dialCode: '+225', flag: '🇨🇮'),
   Country(name: 'Sénégal', code: 'SN', dialCode: '+221', flag: '🇸🇳'),
   Country(name: 'Mali', code: 'ML', dialCode: '+223', flag: '🇲🇱'),
   Country(name: 'Guinée', code: 'GN', dialCode: '+224', flag: '🇬🇳'),

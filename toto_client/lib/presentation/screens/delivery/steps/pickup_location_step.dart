@@ -6,6 +6,7 @@ import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_sizes.dart';
 import '../../../../core/utils/location_helper.dart';
 import '../../../providers/create_delivery_provider.dart';
+import '../../../widgets/place_search_field.dart';
 
 /// Step 1: Sélection du point de départ
 class PickupLocationStep extends ConsumerStatefulWidget {
@@ -20,7 +21,7 @@ class _PickupLocationStepState extends ConsumerState<PickupLocationStep> {
   String? _selectedAddress;
   bool _isLoadingAddress = false;
   bool _isLoadingLocation = true;
-  LatLng _currentPosition = const LatLng(5.3600, -4.0083); // Abidjan par défaut
+  LatLng _currentPosition = const LatLng(12.3686, -1.5275); // Ouagadougou par défaut
 
   Set<Marker> _markers = {};
 
@@ -37,6 +38,25 @@ class _PickupLocationStepState extends ConsumerState<PickupLocationStep> {
   }
 
   Future<void> _initializeLocation() async {
+    // Vérifier si une localisation est déjà sélectionnée dans le provider
+    final state = ref.read(createDeliveryProvider);
+    if (state.pickupLocation != null) {
+      setState(() {
+        _currentPosition = state.pickupLocation!;
+        _selectedAddress = state.pickupAddress;
+        _isLoadingLocation = false;
+        _markers = {
+          Marker(
+            markerId: const MarkerId('pickup'),
+            position: state.pickupLocation!,
+            icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
+            infoWindow: const InfoWindow(title: 'Point de départ'),
+          ),
+        };
+      });
+      return;
+    }
+
     try {
       final position = await LocationHelper.getCurrentPosition();
       if (mounted && position != null) {
@@ -45,10 +65,13 @@ class _PickupLocationStepState extends ConsumerState<PickupLocationStep> {
           _isLoadingLocation = false;
         });
 
-        // Move camera to current location
         _mapController?.animateCamera(
           CameraUpdate.newLatLngZoom(_currentPosition, AppSizes.mapDefaultZoom),
         );
+      } else if (mounted) {
+        setState(() {
+          _isLoadingLocation = false;
+        });
       }
     } catch (e) {
       if (mounted) {
@@ -71,6 +94,11 @@ class _PickupLocationStepState extends ConsumerState<PickupLocationStep> {
         ),
       };
     });
+
+    // Animer la caméra vers la position
+    _mapController?.animateCamera(
+      CameraUpdate.newLatLng(position),
+    );
 
     // Get address from coordinates
     try {
@@ -114,6 +142,33 @@ class _PickupLocationStepState extends ConsumerState<PickupLocationStep> {
     }
   }
 
+  void _onPlaceSelected(PlaceSearchResult result) {
+    final position = result.location;
+
+    setState(() {
+      _selectedAddress = result.address;
+      _markers = {
+        Marker(
+          markerId: const MarkerId('pickup'),
+          position: position,
+          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
+          infoWindow: InfoWindow(title: 'Point de départ', snippet: result.address),
+        ),
+      };
+    });
+
+    // Animer la caméra vers la position
+    _mapController?.animateCamera(
+      CameraUpdate.newLatLngZoom(position, AppSizes.mapDefaultZoom),
+    );
+
+    // Update provider
+    ref.read(createDeliveryProvider.notifier).setPickupLocation(
+      position,
+      result.address,
+    );
+  }
+
   Future<void> _useCurrentLocation() async {
     if (_isLoadingLocation) return;
 
@@ -144,142 +199,221 @@ class _PickupLocationStepState extends ConsumerState<PickupLocationStep> {
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
+    return Column(
       children: [
-        // Google Map
-        GoogleMap(
-          initialCameraPosition: CameraPosition(
-            target: _currentPosition,
-            zoom: AppSizes.mapDefaultZoom,
+        // Champ de recherche d'adresse
+        Container(
+          padding: const EdgeInsets.all(AppSizes.paddingMd),
+          color: Colors.white,
+          child: PlaceSearchField(
+            label: 'Point de départ',
+            hint: 'Rechercher une adresse...',
+            iconColor: AppColors.primary,
+            initialValue: _selectedAddress,
+            onPlaceSelected: _onPlaceSelected,
+            onTapMap: () {
+              // Focus sur la carte - scroll vers le bas si nécessaire
+              FocusScope.of(context).unfocus();
+            },
           ),
-          onMapCreated: (controller) {
-            _mapController = controller;
-          },
-          onTap: _onMapTap,
-          markers: _markers,
-          myLocationEnabled: true,
-          myLocationButtonEnabled: false,
-          zoomControlsEnabled: false,
-          mapToolbarEnabled: false,
-          compassEnabled: true,
         ),
 
-        // Instructions overlay
-        Positioned(
-          top: AppSizes.spacingMd,
-          left: AppSizes.spacingMd,
-          right: AppSizes.spacingMd,
-          child: Container(
-            padding: const EdgeInsets.all(AppSizes.spacingMd),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(AppSizes.radiusMd),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.1),
-                  blurRadius: 10,
-                  offset: const Offset(0, 2),
+        // Carte Google Maps
+        Expanded(
+          child: Stack(
+            children: [
+              GoogleMap(
+                initialCameraPosition: CameraPosition(
+                  target: _currentPosition,
+                  zoom: AppSizes.mapDefaultZoom,
                 ),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(AppSizes.spacingSm),
-                      decoration: BoxDecoration(
-                        color: AppColors.primary.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(AppSizes.radiusSm),
-                      ),
-                      child: const Icon(
-                        Icons.location_on,
-                        color: AppColors.primary,
-                        size: 20,
-                      ),
-                    ),
-                    const SizedBox(width: AppSizes.spacingSm),
-                    const Expanded(
-                      child: Text(
-                        'Sélectionnez le point de départ',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.textPrimary,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                if (_selectedAddress != null) ...[
-                  const SizedBox(height: AppSizes.spacingSm),
-                  Container(
-                    padding: const EdgeInsets.all(AppSizes.spacingSm),
+                onMapCreated: (controller) {
+                  _mapController = controller;
+                },
+                onTap: _onMapTap,
+                markers: _markers,
+                myLocationEnabled: true,
+                myLocationButtonEnabled: false,
+                zoomControlsEnabled: false,
+                mapToolbarEnabled: false,
+                compassEnabled: true,
+              ),
+
+              // Indicateur de chargement d'adresse
+              if (_isLoadingAddress)
+                Positioned(
+                  top: AppSizes.spacingMd,
+                  left: AppSizes.spacingMd,
+                  right: AppSizes.spacingMd,
+                  child: Container(
+                    padding: const EdgeInsets.all(AppSizes.paddingMd),
                     decoration: BoxDecoration(
-                      color: AppColors.success.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(AppSizes.radiusSm),
-                      border: Border.all(
-                        color: AppColors.success.withValues(alpha: 0.3),
-                      ),
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(AppSizes.radiusMd),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.1),
+                          blurRadius: 10,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
                     ),
                     child: Row(
                       children: [
-                        const Icon(
-                          Icons.check_circle,
-                          color: AppColors.success,
-                          size: 16,
+                        const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
                         ),
-                        const SizedBox(width: AppSizes.spacingXs),
-                        Expanded(
-                          child: _isLoadingAddress
-                              ? const Text(
-                                  'Chargement de l\'adresse...',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: AppColors.textSecondary,
-                                  ),
-                                )
-                              : Text(
-                                  _selectedAddress!,
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    color: AppColors.textPrimary,
-                                  ),
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
+                        const SizedBox(width: AppSizes.spacingMd),
+                        Text(
+                          'Recherche de l\'adresse...',
+                          style: TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 14,
+                          ),
                         ),
                       ],
                     ),
                   ),
-                ],
-              ],
-            ),
-          ),
-        ),
+                ),
 
-        // "Use current location" button
-        Positioned(
-          bottom: AppSizes.spacingMd,
-          right: AppSizes.spacingMd,
-          child: FloatingActionButton(
-            onPressed: _useCurrentLocation,
-            backgroundColor: Colors.white,
-            child: _isLoadingLocation
-                ? const SizedBox(
-                    width: 24,
-                    height: 24,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: AppColors.primary,
+              // Adresse sélectionnée (si pas en chargement)
+              if (_selectedAddress != null && !_isLoadingAddress)
+                Positioned(
+                  top: AppSizes.spacingMd,
+                  left: AppSizes.spacingMd,
+                  right: AppSizes.spacingMd,
+                  child: Container(
+                    padding: const EdgeInsets.all(AppSizes.paddingMd),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(AppSizes.radiusMd),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.1),
+                          blurRadius: 10,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
                     ),
-                  )
-                : const Icon(
-                    Icons.my_location,
-                    color: AppColors.primary,
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: AppColors.success.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(
+                            Icons.check_circle,
+                            color: AppColors.success,
+                            size: 20,
+                          ),
+                        ),
+                        const SizedBox(width: AppSizes.spacingMd),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Point de départ sélectionné',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                _selectedAddress!,
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
+                                  color: AppColors.textPrimary,
+                                ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
+                ),
+
+              // Hint pour toucher la carte
+              if (_selectedAddress == null && !_isLoadingAddress)
+                Positioned(
+                  top: AppSizes.spacingMd,
+                  left: AppSizes.spacingMd,
+                  right: AppSizes.spacingMd,
+                  child: Container(
+                    padding: const EdgeInsets.all(AppSizes.paddingMd),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(AppSizes.radiusMd),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.1),
+                          blurRadius: 10,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: AppColors.primary.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Icon(
+                            Icons.touch_app,
+                            color: AppColors.primary,
+                            size: 20,
+                          ),
+                        ),
+                        const SizedBox(width: AppSizes.spacingMd),
+                        const Expanded(
+                          child: Text(
+                            'Touchez la carte pour sélectionner le point de départ',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+              // Bouton "Ma position"
+              Positioned(
+                bottom: AppSizes.spacingMd,
+                right: AppSizes.spacingMd,
+                child: FloatingActionButton(
+                  heroTag: 'pickup_location',
+                  onPressed: _useCurrentLocation,
+                  backgroundColor: Colors.white,
+                  child: _isLoadingLocation
+                      ? const SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: AppColors.primary,
+                          ),
+                        )
+                      : Icon(
+                          Icons.my_location,
+                          color: AppColors.primary,
+                        ),
+                ),
+              ),
+            ],
           ),
         ),
       ],

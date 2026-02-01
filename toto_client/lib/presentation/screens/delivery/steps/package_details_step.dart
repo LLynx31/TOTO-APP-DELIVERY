@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_sizes.dart';
 import '../../../providers/create_delivery_provider.dart';
+import '../../../widgets/country_phone_field.dart';
 
 /// Step 3: Détails du colis
 class PackageDetailsStep extends ConsumerStatefulWidget {
@@ -20,6 +21,8 @@ class _PackageDetailsStepState extends ConsumerState<PackageDetailsStep> {
   final _packageDescriptionController = TextEditingController();
   final _packageWeightController = TextEditingController();
   final _specialInstructionsController = TextEditingController();
+  final _phoneFieldKey = GlobalKey<CountryPhoneFieldState>();
+  Country _selectedCountry = availableCountries[0]; // Burkina Faso par défaut
 
   @override
   void initState() {
@@ -27,10 +30,14 @@ class _PackageDetailsStepState extends ConsumerState<PackageDetailsStep> {
     // Load existing values from provider if any
     final state = ref.read(createDeliveryProvider);
     _receiverNameController.text = state.receiverName ?? '';
-    _receiverPhoneController.text = state.receiverPhone ?? '';
     _packageDescriptionController.text = state.packageDescription ?? '';
     _packageWeightController.text = state.packageWeight?.toString() ?? '';
     _specialInstructionsController.text = state.specialInstructions ?? '';
+
+    // Si un numéro de téléphone existe, extraire le numéro local
+    if (state.receiverPhone != null && state.receiverPhone!.isNotEmpty) {
+      _initPhoneFromFullNumber(state.receiverPhone!);
+    }
 
     // Add listeners to update provider on change
     _receiverNameController.addListener(_updateProvider);
@@ -38,6 +45,33 @@ class _PackageDetailsStepState extends ConsumerState<PackageDetailsStep> {
     _packageDescriptionController.addListener(_updateProvider);
     _packageWeightController.addListener(_updateProvider);
     _specialInstructionsController.addListener(_updateProvider);
+  }
+
+  /// Initialise le champ téléphone à partir d'un numéro complet (+XXX...)
+  void _initPhoneFromFullNumber(String fullNumber) {
+    // Chercher le pays correspondant à l'indicatif
+    for (final country in availableCountries) {
+      if (fullNumber.startsWith(country.dialCode)) {
+        _selectedCountry = country;
+        _receiverPhoneController.text = fullNumber.substring(country.dialCode.length);
+        return;
+      }
+    }
+    // Si pas trouvé, utiliser le numéro tel quel
+    _receiverPhoneController.text = fullNumber;
+  }
+
+  /// Récupère le numéro complet avec indicatif pays
+  String _getFullPhoneNumber() {
+    final localNumber = _receiverPhoneController.text.trim();
+    if (localNumber.isEmpty) return '';
+
+    // Supprimer le 0 initial si présent
+    final cleanNumber = localNumber.startsWith('0')
+        ? localNumber.substring(1)
+        : localNumber;
+
+    return '${_selectedCountry.dialCode}$cleanNumber';
   }
 
   @override
@@ -52,8 +86,9 @@ class _PackageDetailsStepState extends ConsumerState<PackageDetailsStep> {
 
   void _updateProvider() {
     // Only update provider if required fields are filled
+    final fullPhoneNumber = _getFullPhoneNumber();
     if (_receiverNameController.text.trim().isEmpty ||
-        _receiverPhoneController.text.trim().isEmpty ||
+        fullPhoneNumber.isEmpty ||
         _packageDescriptionController.text.trim().isEmpty) {
       return;
     }
@@ -64,7 +99,7 @@ class _PackageDetailsStepState extends ConsumerState<PackageDetailsStep> {
 
     ref.read(createDeliveryProvider.notifier).setPackageDetails(
       receiverName: _receiverNameController.text.trim(),
-      receiverPhone: _receiverPhoneController.text.trim(),
+      receiverPhone: fullPhoneNumber,
       packageDescription: _packageDescriptionController.text.trim(),
       packageWeight: weight,
       specialInstructions: _specialInstructionsController.text.isNotEmpty
@@ -166,25 +201,26 @@ class _PackageDetailsStepState extends ConsumerState<PackageDetailsStep> {
             ),
             const SizedBox(height: AppSizes.spacingMd),
 
-            // Receiver Phone
-            TextFormField(
+            // Receiver Phone avec sélecteur de pays
+            CountryPhoneField(
+              key: _phoneFieldKey,
               controller: _receiverPhoneController,
-              decoration: InputDecoration(
-                labelText: 'Téléphone du destinataire *',
-                hintText: 'Ex: 0701234567',
-                prefixIcon: const Icon(Icons.phone_outlined),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(AppSizes.radiusMd),
-                ),
-                filled: true,
-                fillColor: Colors.white,
-              ),
-              keyboardType: TextInputType.phone,
+              label: 'Téléphone du destinataire *',
+              hint: '07 00 00 00 00',
+              initialCountry: _selectedCountry,
+              onCountryChanged: (country) {
+                setState(() {
+                  _selectedCountry = country;
+                });
+                _updateProvider();
+              },
               validator: (value) {
-                if (value == null || value.trim().isEmpty) {
+                if (value == null || value.isEmpty) {
                   return 'Le numéro de téléphone est requis';
                 }
-                if (value.length < 10) {
+                // Validation basique: au moins 8 chiffres
+                final digitsOnly = value.replaceAll(RegExp(r'[^\d]'), '');
+                if (digitsOnly.length < 8) {
                   return 'Numéro de téléphone invalide';
                 }
                 return null;

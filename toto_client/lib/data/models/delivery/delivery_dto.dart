@@ -1,3 +1,19 @@
+/// Helper pour parser un double depuis JSON (peut être num ou String)
+double _parseDouble(dynamic value, [double defaultValue = 0.0]) {
+  if (value == null) return defaultValue;
+  if (value is num) return value.toDouble();
+  if (value is String) return double.tryParse(value) ?? defaultValue;
+  return defaultValue;
+}
+
+/// Helper pour parser un double nullable depuis JSON
+double? _parseDoubleNullable(dynamic value) {
+  if (value == null) return null;
+  if (value is num) return value.toDouble();
+  if (value is String) return double.tryParse(value);
+  return null;
+}
+
 /// DTO pour les informations du livreur
 class DelivererInfoDto {
   final String id;
@@ -24,7 +40,7 @@ class DelivererInfoDto {
       fullName: json['full_name'] ?? 'Livreur',
       phoneNumber: json['phone_number'] ?? '',
       photoUrl: json['photo_url'],
-      rating: (json['rating'] ?? 0).toDouble(),
+      rating: _parseDouble(json['rating']),
       vehicleType: json['vehicle_type'],
       licensePlate: json['license_plate'],
     );
@@ -112,21 +128,21 @@ class DeliveryDto {
           ? DelivererInfoDto.fromJson(json['deliverer'] as Map<String, dynamic>)
           : null,
       pickupAddress: json['pickup_address'] ?? '',
-      pickupLatitude: (json['pickup_latitude'] ?? 0).toDouble(),
-      pickupLongitude: (json['pickup_longitude'] ?? 0).toDouble(),
+      pickupLatitude: _parseDouble(json['pickup_latitude']),
+      pickupLongitude: _parseDouble(json['pickup_longitude']),
       pickupPhone: json['pickup_phone'],
       deliveryAddress: json['delivery_address'] ?? '',
-      deliveryLatitude: (json['delivery_latitude'] ?? 0).toDouble(),
-      deliveryLongitude: (json['delivery_longitude'] ?? 0).toDouble(),
+      deliveryLatitude: _parseDouble(json['delivery_latitude']),
+      deliveryLongitude: _parseDouble(json['delivery_longitude']),
       deliveryPhone: json['delivery_phone'] ?? '',
       receiverName: json['receiver_name'] ?? '',
       packageDescription: json['package_description'],
-      packageWeight: json['package_weight']?.toDouble(),
+      packageWeight: _parseDoubleNullable(json['package_weight']),
       qrCodePickup: json['qr_code_pickup'] ?? '',
       qrCodeDelivery: json['qr_code_delivery'] ?? '',
       status: json['status'] ?? 'pending',
-      price: (json['price'] ?? 0).toDouble(),
-      distanceKm: json['distance_km']?.toDouble(),
+      price: _parseDouble(json['price']),
+      distanceKm: _parseDoubleNullable(json['distance_km']),
       specialInstructions: json['special_instructions'],
       deliveryCode: json['delivery_code'],
       createdAt: json['created_at'] != null

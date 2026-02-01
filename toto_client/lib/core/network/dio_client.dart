@@ -299,10 +299,18 @@ class DioClient {
     final statusCode = response?.statusCode;
     final data = response?.data;
 
+    debugPrint('[DioClient] Response error: statusCode=$statusCode, data=$data');
+
     String message = 'Une erreur est survenue.';
 
     if (data is Map<String, dynamic>) {
-      message = data['message'] ?? message;
+      // NestJS validation errors return message as array
+      final rawMessage = data['message'];
+      if (rawMessage is List) {
+        message = rawMessage.join(', ');
+      } else if (rawMessage is String) {
+        message = rawMessage;
+      }
     }
 
     switch (statusCode) {

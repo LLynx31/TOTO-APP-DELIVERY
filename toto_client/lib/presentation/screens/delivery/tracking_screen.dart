@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_sizes.dart';
@@ -264,8 +265,11 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> {
 
   /// Panneau d'informations draggable en bas
   Widget _buildBottomSheet(Delivery delivery, TrackingState trackingState) {
+    final isWaitingForDeliverer = delivery.deliverer == null &&
+        delivery.status == DeliveryStatus.pending;
+
     return DraggableScrollableSheet(
-      initialChildSize: 0.35,
+      initialChildSize: isWaitingForDeliverer ? 0.45 : 0.35,
       minChildSize: 0.2,
       maxChildSize: 0.8,
       builder: (context, scrollController) {
@@ -300,8 +304,12 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> {
                 ),
               ),
 
-              // Indicateur de connexion
-              if (!trackingState.isConnected)
+              // Carte "En attente de livreur" si pas encore assigné
+              if (isWaitingForDeliverer)
+                _buildWaitingForDelivererCard(delivery),
+
+              // Indicateur de connexion (seulement si livreur assigné)
+              if (!isWaitingForDeliverer && !trackingState.isConnected)
                 Container(
                   padding: const EdgeInsets.all(AppSizes.spacingSm),
                   margin: const EdgeInsets.only(bottom: AppSizes.spacingMd),
@@ -335,14 +343,16 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> {
                   ),
                 ),
 
-              // Carte d'estimation d'arrivée
-              EstimatedArrivalCard(
-                estimatedMinutes: _calculateEstimatedMinutes(trackingState),
-                distanceKm: _calculateDistance(trackingState),
-                isLoading: trackingState.isConnecting,
-              ),
+              // Carte d'estimation d'arrivée (seulement si livreur assigné)
+              if (!isWaitingForDeliverer)
+                EstimatedArrivalCard(
+                  estimatedMinutes: _calculateEstimatedMinutes(trackingState),
+                  distanceKm: _calculateDistance(trackingState),
+                  isLoading: trackingState.isConnecting,
+                ),
 
-              const SizedBox(height: AppSizes.spacingMd),
+              if (!isWaitingForDeliverer)
+                const SizedBox(height: AppSizes.spacingMd),
 
               // Timeline de statut
               DeliveryStatusTimeline(
@@ -351,7 +361,7 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> {
 
               const SizedBox(height: AppSizes.spacingMd),
 
-              // Informations du livreur
+              // Informations du livreur (si assigné)
               if (delivery.deliverer != null)
                 DelivererInfoCard(
                   delivererName: delivery.deliverer!.fullName,
@@ -367,10 +377,160 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> {
               _buildDeliveryDetails(delivery),
 
               const SizedBox(height: AppSizes.spacingLg),
+
+              // Bouton annuler (seulement si en attente)
+              if (isWaitingForDeliverer)
+                _buildCancelButton(delivery),
             ],
           ),
         );
       },
+    );
+  }
+
+  /// Carte affichée quand en attente d'un livreur
+  Widget _buildWaitingForDelivererCard(Delivery delivery) {
+    return Container(
+      padding: const EdgeInsets.all(AppSizes.paddingLg),
+      margin: const EdgeInsets.only(bottom: AppSizes.spacingMd),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            AppColors.primary.withValues(alpha: 0.1),
+            AppColors.primary.withValues(alpha: 0.05),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(AppSizes.radiusMd),
+        border: Border.all(
+          color: AppColors.primary.withValues(alpha: 0.3),
+        ),
+      ),
+      child: Column(
+        children: [
+          // Animation de recherche
+          Stack(
+            alignment: Alignment.center,
+            children: [
+              SizedBox(
+                width: 80,
+                height: 80,
+                child: CircularProgressIndicator(
+                  strokeWidth: 3,
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    AppColors.primary.withValues(alpha: 0.3),
+                  ),
+                ),
+              ),
+              Container(
+                width: 60,
+                height: 60,
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.delivery_dining,
+                  size: 32,
+                  color: AppColors.primary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSizes.spacingMd),
+          const Text(
+            'Recherche d\'un livreur...',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: AppColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: AppSizes.spacingSm),
+          Text(
+            'Votre demande de livraison est en cours de traitement.\nUn livreur sera bientôt assigné.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 14,
+              color: AppColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: AppSizes.spacingLg),
+          // Bouton pour voir le QR code de récupération
+          ElevatedButton.icon(
+            onPressed: () {
+              context.push('/delivery/${delivery.id}/qr?type=pickup');
+            },
+            icon: const Icon(Icons.qr_code),
+            label: const Text('Voir le QR code de récupération'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSizes.paddingLg,
+                vertical: AppSizes.paddingMd,
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppSizes.radiusMd),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Bouton pour annuler la livraison
+  Widget _buildCancelButton(Delivery delivery) {
+    return OutlinedButton.icon(
+      onPressed: () => _showCancelDialog(delivery),
+      icon: const Icon(Icons.cancel_outlined, color: AppColors.error),
+      label: const Text('Annuler la livraison'),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: AppColors.error,
+        side: const BorderSide(color: AppColors.error),
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSizes.paddingLg,
+          vertical: AppSizes.paddingMd,
+        ),
+      ),
+    );
+  }
+
+  /// Dialogue de confirmation d'annulation
+  void _showCancelDialog(Delivery delivery) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Annuler la livraison'),
+        content: const Text(
+          'Êtes-vous sûr de vouloir annuler cette livraison ?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Non'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              // TODO: Implémenter l'annulation via l'API
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Livraison annulée'),
+                  backgroundColor: Colors.orange,
+                ),
+              );
+              Navigator.of(context).pop();
+            },
+            style: TextButton.styleFrom(
+              foregroundColor: AppColors.error,
+            ),
+            child: const Text('Oui, annuler'),
+          ),
+        ],
+      ),
     );
   }
 

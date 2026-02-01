@@ -327,9 +327,36 @@ class _CreateDeliveryWizardScreenState
         // Réinitialiser le wizard
         ref.read(createDeliveryProvider.notifier).reset();
 
-        // Naviguer vers l'écran de tracking
+        // Recharger les livraisons pour inclure la nouvelle
+        ref.read(deliveriesProvider.notifier).loadDeliveries();
+
+        // Afficher un message de succès et retourner à l'accueil
         if (mounted) {
-          context.go('/tracking/${delivery.id}');
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Row(
+                children: [
+                  Icon(Icons.check_circle, color: Colors.white),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: Text('Livraison créée ! En attente d\'un livreur...'),
+                  ),
+                ],
+              ),
+              backgroundColor: AppColors.success,
+              duration: const Duration(seconds: 4),
+              action: SnackBarAction(
+                label: 'Voir',
+                textColor: Colors.white,
+                onPressed: () {
+                  context.push('/delivery/${delivery.id}/tracking');
+                },
+              ),
+            ),
+          );
+
+          // Retourner à l'accueil
+          context.go('/home');
         }
       } else {
         // Afficher une erreur

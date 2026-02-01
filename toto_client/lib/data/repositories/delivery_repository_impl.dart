@@ -30,12 +30,20 @@ class DeliveryRepositoryImpl implements DeliveryRepository {
         specialInstructions: params.specialInstructions,
       );
 
+      debugPrint('[DeliveryRepository] createDelivery called');
+      debugPrint('[DeliveryRepository] DTO: ${dto.toJson()}');
+
       final result = await remoteDatasource.createDelivery(dto);
+      debugPrint('[DeliveryRepository] Success: ${result.id}');
       return Success(_mapDtoToEntity(result));
     } on ApiException catch (e) {
+      debugPrint('[DeliveryRepository] ApiException: ${e.message}');
+      debugPrint('[DeliveryRepository] ApiException statusCode: ${e.statusCode}');
       return Failure(e.message);
-    } catch (e) {
-      return const Failure('Erreur lors de la création de la livraison');
+    } catch (e, stackTrace) {
+      debugPrint('[DeliveryRepository] Exception: $e');
+      debugPrint('[DeliveryRepository] StackTrace: $stackTrace');
+      return Failure('Erreur lors de la création de la livraison: $e');
     }
   }
 

@@ -25,11 +25,15 @@ class DeliveryRemoteDatasourceImpl implements DeliveryRemoteDatasource {
 
   @override
   Future<DeliveryDto> createDelivery(CreateDeliveryDto request) async {
+    debugPrint('[DeliveryRemoteDatasource] createDelivery called');
+    debugPrint('[DeliveryRemoteDatasource] Request JSON: ${request.toJson()}');
+
     final response = await dioClient.post(
       ApiConfig.deliveries,
       data: request.toJson(),
     );
 
+    debugPrint('[DeliveryRemoteDatasource] Response: ${response.data}');
     return DeliveryDto.fromJson(response.data);
   }
 
