@@ -13,15 +13,14 @@ Group=appuser
 WorkingDirectory=/home/Nycaise/web/toto.tangagroup.com/app/TOTO-APP-DELIVERY/toto-backend
 
 # Charger les variables d'environnement
-EnvironmentFile=/home/Nycaise/web/toto.tangagroup.com/app/.env
+EnvironmentFile=/home/Nycaise/web/toto.tangagroup.com/app/TOTO-APP-DELIVERY/toto-backend/.env
 Environment="NODE_ENV=production"
 
-# Chemin vers node (adapter selon votre installation)
-# Si vous utilisez NVM:
-Environment="PATH=/home/appuser/.nvm/versions/node/v18.19.1/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin"
+# Chemin vers node (utilise le node disponible globalement)
+Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin"
 
 # Commande de démarrage
-ExecStart=/home/appuser/.nvm/versions/node/v18.19.1/bin/node dist/src/main.js
+ExecStart=/usr/bin/node dist/src/main.js
 
 # Restart policy
 Restart=on-failure
