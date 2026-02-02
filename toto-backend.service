@@ -10,7 +10,7 @@ User=appuser
 Group=appuser
 
 # Change au répertoire de l'application
-WorkingDirectory=/home/Nycaise/web/toto.tangagroup.com/app
+WorkingDirectory=/home/Nycaise/web/toto.tangagroup.com/app/TOTO-APP-DELIVERY/toto-backend
 
 # Charger les variables d'environnement
 EnvironmentFile=/home/Nycaise/web/toto.tangagroup.com/app/.env

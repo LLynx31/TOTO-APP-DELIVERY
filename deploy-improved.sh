@@ -15,8 +15,9 @@
 set -e  # Exit on error
 
 # Configuration
-DEPLOY_DIR="/home/Nycaise/web/toto.tangagroup.com/app"
+DEPLOY_DIR="/home/Nycaise/web/toto.tangagroup.com/app/TOTO-APP-DELIVERY/toto-backend"
 BACKUP_DIR="/home/Nycaise/web/backups"
+ENV_BACKUP_DIR="/home/Nycaise/web/backups/env"
 LOG_FILE="/var/log/toto-deploy.log"
 APP_USER="appuser"  # À adapter selon votre config
 SYSTEMD_SERVICE="toto-backend"  # À adapter selon votre config
@@ -63,6 +64,45 @@ check_error() {
         log_error "$1"
         exit 1
     fi
+}
+
+save_env_file() {
+    log_info "💾 Sauvegarde du fichier .env avant modification..."
+    
+    if [ ! -f "$DEPLOY_DIR/.env" ]; then
+        log_warning "Fichier .env non trouvé, création du répertoire de backup"
+        return
+    fi
+    
+    mkdir -p "$ENV_BACKUP_DIR"
+    
+    ENV_BACKUP_FILE="$ENV_BACKUP_DIR/.env_$(date +%Y%m%d_%H%M%S).backup"
+    cp "$DEPLOY_DIR/.env" "$ENV_BACKUP_FILE"
+    
+    log_success "✅ .env sauvegardé: $ENV_BACKUP_FILE"
+    
+    # Garder seulement les 10 derniers backups
+    ls -t "$ENV_BACKUP_DIR"/.env_*.backup 2>/dev/null | tail -n +11 | xargs -r rm
+}
+
+restore_env_file() {
+    log_info "♻️  Restauration du fichier .env après git reset..."
+    
+    # Trouver le plus récent backup de .env
+    LATEST_ENV_BACKUP=$(ls -t "$ENV_BACKUP_DIR"/.env_*.backup 2>/dev/null | head -1)
+    
+    if [ -z "$LATEST_ENV_BACKUP" ]; then
+        log_warning "Aucun backup .env trouvé, utilisant .env.example si disponible"
+        if [ -f "$DEPLOY_DIR/.env.example" ]; then
+            cp "$DEPLOY_DIR/.env.example" "$DEPLOY_DIR/.env"
+            log_warning "⚠️  .env créé depuis .env.example - À reconfigurer!"
+        fi
+        return
+    fi
+    
+    # Restaurer le .env sauvegardé
+    cp "$LATEST_ENV_BACKUP" "$DEPLOY_DIR/.env"
+    log_success "✅ .env restauré depuis: $LATEST_ENV_BACKUP"
 }
 
 # ========================================
@@ -114,6 +154,7 @@ verify_requirements() {
     
     # Créer les répertoires necessaires
     mkdir -p "$BACKUP_DIR"
+    mkdir -p "$ENV_BACKUP_DIR"
     mkdir -p "$(dirname $LOG_FILE)"
 }
 
@@ -123,6 +164,9 @@ verify_requirements() {
 
 update_repository() {
     log_info "📥 Récupération des dernières modifications depuis Git..."
+    # Sauvegarder le .env AVANT de faire git fetch
+    save_env_file
+    
     
     cd "$DEPLOY_DIR"
     
@@ -145,6 +189,9 @@ update_repository() {
     log_info "Réinitialisation vers origin/master..."
     git reset --hard origin/master
     check_error "Erreur lors de git reset"
+    
+    # Restaurer le .env sauvegardé APRÈS git reset
+    restore_env_file
     
     log_success "✅ Repository à jour"
 }

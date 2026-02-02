@@ -18,8 +18,8 @@ echo -e "${BLUE}CONFIGURATION INITIALE TOTO BACKEND${NC}"
 echo -e "${BLUE}========================================${NC}"
 
 # Demander les informations
-read -p "Chemin d'installation (défaut: /home/Nycaise/web/toto.tangagroup.com/app): " INSTALL_PATH
-INSTALL_PATH=${INSTALL_PATH:-/home/Nycaise/web/toto.tangagroup.com/app}
+read -p "Chemin d'installation (défaut: /home/Nycaise/web/toto.tangagroup.com/app/TOTO-APP-DELIVERY/toto-backend): " INSTALL_PATH
+INSTALL_PATH=${INSTALL_PATH:-/home/Nycaise/web/toto.tangagroup.com/app/TOTO-APP-DELIVERY/toto-backend}
 
 read -p "Utilisateur système (défaut: appuser): " APP_USER
 APP_USER=${APP_USER:-appuser}
