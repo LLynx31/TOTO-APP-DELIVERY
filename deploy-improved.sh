@@ -264,24 +264,30 @@ backup_database() {
     log_info "💾 Sauvegarde de la base de données..."
     
     if [ -z "$DB_HOST" ] || [ -z "$DB_PASSWORD" ] || [ -z "$DB_DATABASE" ]; then
-        log_warning "Variables de base de données manquantes, backup ignoré"
-        return
+        log_error "Variables de base de données manquantes"
+        exit 1
     fi
     
     BACKUP_FILE="$BACKUP_DIR/${DB_DATABASE}_$(date +%Y%m%d_%H%M%S).sql"
     
-    PGPASSWORD="$DB_PASSWORD" pg_dump \
+    # Tenter la sauvegarde avec gestion d'erreur
+    if PGPASSWORD="$DB_PASSWORD" pg_dump \
         -h "$DB_HOST" \
         -U "$DB_USERNAME" \
         -d "$DB_DATABASE" \
-        > "$BACKUP_FILE" 2>/dev/null
-    
-    if [ $? -eq 0 ]; then
+        > "$BACKUP_FILE" 2>"${BACKUP_FILE}.err"; then
+        
         log_success "✅ Base de données sauvegardée: $BACKUP_FILE"
+        rm -f "${BACKUP_FILE}.err"
+        
         # Garder seulement les 5 derniers backups
         ls -t "$BACKUP_DIR"/${DB_DATABASE}_*.sql 2>/dev/null | tail -n +6 | xargs -r rm
     else
-        log_warning "⚠️  Sauvegarde de base de données échouée (continuant...)"
+        # Afficher l'erreur réelle
+        ERROR_MSG=$(cat "${BACKUP_FILE}.err" 2>/dev/null)
+        log_error "Sauvegarde de base de données échouée: $ERROR_MSG"
+        rm -f "$BACKUP_FILE" "${BACKUP_FILE}.err"
+        exit 1
     fi
 }
 
@@ -291,10 +297,10 @@ run_migrations() {
     cd "$DEPLOY_DIR"
     
     # Vérifier les migrations en attente
-    if pnpm run migration:show 2>/dev/null | grep -q "pending"; then
+    if pnpm run migration:show 2>/dev/null | grep -q "pending" || [ $? -eq 0 ]; then
         log_info "Migrations en attente détectées, exécution..."
         pnpm run migration:run
-        check_error "Erreur lors de l'exécution des migrations"
+        check_error "Erreur lors des migrations"
         log_success "✅ Migrations exécutées"
     else
         log_info "Aucune migration en attente"
@@ -329,28 +335,26 @@ restart_service() {
     
     if command -v systemctl &> /dev/null; then
         # Vérifier si le service existe
-        if systemctl list-unit-files | grep -q "^${SYSTEMD_SERVICE}"; then
-            systemctl stop "$SYSTEMD_SERVICE" || true
+        if systemctl list-unit-files 2>/dev/null | grep -q "^${SYSTEMD_SERVICE}" || systemctl list-units --all 2>/dev/null | grep -q "$SYSTEMD_SERVICE"; then
+            systemctl stop "$SYSTEMD_SERVICE" 2>/dev/null || true
             sleep 2
             systemctl start "$SYSTEMD_SERVICE"
-            check_error "Erreur lors du démarrage du service"
+            check_error "Erreur lors du redémarrage du service"
             
             # Attendre que le service soit prêt
             sleep 3
-            if systemctl is-active --quiet "$SYSTEMD_SERVICE"; then
-                log_success "✅ Service redémarré avec succès"
-            else
-                log_error "Service n'est pas actif après le redémarrage"
-                systemctl status "$SYSTEMD_SERVICE"
+            if ! systemctl is-active --quiet "$SYSTEMD_SERVICE" 2>/dev/null; then
+                log_error "Service n'est pas actif après redémarrage"
                 exit 1
             fi
+            log_success "✅ Service redémarré avec succès"
         else
-            log_warning "Service systemd '$SYSTEMD_SERVICE' non trouvé"
-            log_info "Pour démarrer l'application manuellement:"
-            log_info "  cd $DEPLOY_DIR && PORT=3000 pnpm run start:prod"
+            log_error "Service systemd '$SYSTEMD_SERVICE' non trouvé"
+            exit 1
         fi
     else
-        log_warning "systemd non disponible"
+        log_error "systemd non disponible"
+        exit 1
     fi
 }
 
@@ -373,8 +377,8 @@ health_check() {
         sleep 2
     done
     
-    log_warning "⚠️  Impossible de vérifier la santé (endpoint peut ne pas exister)"
-    return 0
+    log_error "Impossible de vérifier la santé après 30 tentatives"
+    exit 1
 }
 
 # ========================================
