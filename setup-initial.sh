@@ -51,6 +51,18 @@ JWT_REFRESH_SECRET=$(openssl rand -base64 32)
 
 echo -e "${BLUE}✓ Configuration en cours...${NC}"
 
+# Créer utilisateur système AVANT d'utiliser chown
+if ! id "$APP_USER" &>/dev/null; then
+    echo -e "${BLUE}Création de l'utilisateur système '$APP_USER'...${NC}"
+    useradd -r -s /bin/bash -d "$INSTALL_PATH" "$APP_USER" || {
+        echo -e "${RED}✗ Erreur: Impossible de créer l'utilisateur '$APP_USER'${NC}"
+        exit 1
+    }
+    echo -e "${GREEN}✓ Utilisateur système '$APP_USER' créé${NC}"
+else
+    echo -e "${YELLOW}⚠ Utilisateur '$APP_USER' existe déjà${NC}"
+fi
+
 # Créer le fichier .env
 cat > "$INSTALL_PATH/.env" << EOF
 # Application
@@ -91,14 +103,6 @@ mkdir -p /var/log
 chown -R "$APP_USER:$APP_USER" /var/uploads/toto
 
 echo -e "${GREEN}✓ Répertoires créés${NC}"
-
-# Créer utilisateur système s'il n'existe pas
-if ! id "$APP_USER" &>/dev/null; then
-    useradd -r -s /bin/bash -d "$INSTALL_PATH" "$APP_USER"
-    echo -e "${GREEN}✓ Utilisateur système '$APP_USER' créé${NC}"
-else
-    echo -e "${YELLOW}⚠ Utilisateur '$APP_USER' existe déjà${NC}"
-fi
 
 # Définir les permissions
 chown -R "$APP_USER:$APP_USER" "$INSTALL_PATH"
@@ -165,9 +169,9 @@ echo -e "🔌 Port WebSocket: ${BLUE}$WS_PORT${NC}"
 echo ""
 echo "Prochaines étapes:"
 echo "1. Configurer PostgreSQL:"
-echo "   psql -U postgres"
+echo "   sudo -u postgres psql"
 echo "   CREATE DATABASE $DB_NAME;"
-echo "   CREATE USER $DB_USER WITH PASSWORD '****';"
+echo "   CREATE USER $DB_USER WITH PASSWORD 'votre_mot_de_passe';"
 echo "   GRANT ALL PRIVILEGES ON DATABASE $DB_NAME TO $DB_USER;"
 echo ""
 echo "2. Exécuter les migrations:"
@@ -181,6 +185,9 @@ echo ""
 echo "4. Vérifier le statut:"
 echo "   systemctl status toto-backend"
 echo "   tail -f /var/log/toto-backend.log"
+echo ""
+echo -e "${YELLOW}⚠  Attention: Conservez le fichier .env en sécurité!${NC}"
+echo ""
 echo ""
 echo -e "${YELLOW}⚠  Attention: Conservez le fichier .env en sécurité!${NC}"
 echo ""
