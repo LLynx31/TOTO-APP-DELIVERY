@@ -9,12 +9,14 @@ set -euo pipefail
 # --- Configuration -----------------------------------------------------------
 APP_NAME="toto-backend"
 DEPLOY_DIR="/home/Nycaise/web/toto.tangagroup.com"
-APP_DIR="${DEPLOY_DIR}/app"
-BACKEND_DIR="${APP_DIR}/toto-backend"
+REPO_DIR="${DEPLOY_DIR}/app/TOTO-APP-DELIVERY"
+BACKEND_DIR="${REPO_DIR}/toto-backend"
 BACKUP_DIR="${DEPLOY_DIR}/backups"
 LOG_FILE="${DEPLOY_DIR}/logs/deploy.log"
 ENV_FILE="${BACKEND_DIR}/.env"
 PM2_APP_NAME="toto-backend"
+GIT_REPO="https://github.com/LLynx31/TOTO-APP-DELIVERY.git"
+GIT_BRANCH="master"
 NODE_VERSION="18"
 MAX_BACKUPS=5
 
@@ -87,14 +89,17 @@ check_prerequisites() {
     fi
     log_success "PM2 $(pm2 -v)"
 
-    # Vérifier que le répertoire app existe
-    if [ ! -d "$APP_DIR" ]; then
-        die "Répertoire app introuvable : ${APP_DIR}"
+    # Vérifier que le repo existe, sinon le cloner
+    if [ ! -d "$REPO_DIR" ]; then
+        log "Repo introuvable, clonage initial..."
+        mkdir -p "$(dirname "$REPO_DIR")"
+        git clone -b "$GIT_BRANCH" "$GIT_REPO" "$REPO_DIR" || die "Échec du clonage du repo"
+        log_success "Repo cloné dans ${REPO_DIR}"
     fi
 
     # Vérifier que le backend existe dans le repo
     if [ ! -d "$BACKEND_DIR" ]; then
-        die "Répertoire toto-backend introuvable dans : ${APP_DIR}"
+        die "Répertoire toto-backend introuvable dans : ${REPO_DIR}"
     fi
 
     # Vérifier le fichier .env de production
@@ -158,7 +163,7 @@ create_backup() {
 pull_code() {
     log "Récupération du code depuis Git..."
 
-    cd "$APP_DIR"
+    cd "$REPO_DIR"
 
     # Sauvegarder les modifications locales éventuelles (uploads, etc.)
     git stash 2>/dev/null || true
@@ -168,7 +173,7 @@ pull_code() {
     local current_commit
     current_commit=$(git rev-parse HEAD)
 
-    git reset --hard origin/master || die "Impossible de reset sur origin/master"
+    git reset --hard "origin/${GIT_BRANCH}" || die "Impossible de reset sur origin/${GIT_BRANCH}"
 
     local new_commit
     new_commit=$(git rev-parse HEAD)
@@ -327,7 +332,7 @@ print_summary() {
     echo -e "  API          : http://localhost:${port}"
     echo -e "  Swagger      : http://localhost:${port}/api"
     echo -e "  WebSocket    : ws://localhost:${ws_port}/tracking"
-    echo -e "  Commit       : $(cd "$APP_DIR" && git log --oneline -1)"
+    echo -e "  Commit       : $(cd "$REPO_DIR" && git log --oneline -1)"
     echo -e "  Node         : $(node -v)"
     echo ""
     echo -e "  Commandes utiles :"
