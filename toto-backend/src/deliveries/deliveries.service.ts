@@ -35,8 +35,10 @@ export class DeliveriesService {
       createDeliveryDto.delivery_longitude,
     );
 
-    // Calculate price based on distance (example: 1000 CFA base + 500 CFA per km)
-    const price = 1000 + distance * 500;
+    // Calculate price based on distance
+    // - Less than 4km: 1000 FCFA flat rate
+    // - 4km or more: 250 FCFA per km
+    const price = distance < 4 ? 1000 : distance * 250;
 
     // Generate unique QR codes
     const qr_code_pickup = this.generateQRCode('pickup');
